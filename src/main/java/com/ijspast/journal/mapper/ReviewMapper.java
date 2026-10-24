@@ -36,6 +36,7 @@ public class ReviewMapper {
         dto.setConfidentialComments(review.getConfidentialComments());
         dto.setStage(review.getStage());
         dto.setStageName(review.getStageName());
+        dto.setRound(review.getRound() != null ? review.getRound() : (review.getStage() == 3 ? 2 : 1));
 
         if (review.getRubricScores() != null && !review.getRubricScores().isBlank()) {
             try {

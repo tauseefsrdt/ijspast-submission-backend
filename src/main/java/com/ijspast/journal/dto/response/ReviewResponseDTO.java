@@ -14,6 +14,7 @@ public class ReviewResponseDTO {
     private String commentsForAuthor;
     private String confidentialComments;
     private int stage = 1;
+    private Integer round = 1;
     private String stageName;
     private java.util.List<Integer> rubricScores;
     private Double overallScore;
@@ -148,5 +149,13 @@ public class ReviewResponseDTO {
 
     public void setOverallScore(Double overallScore) {
         this.overallScore = overallScore;
+    }
+
+    public Integer getRound() {
+        return round != null ? round : 1;
+    }
+
+    public void setRound(Integer round) {
+        this.round = round;
     }
 }

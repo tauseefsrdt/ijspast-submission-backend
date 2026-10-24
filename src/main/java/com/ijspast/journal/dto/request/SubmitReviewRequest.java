@@ -31,6 +31,8 @@ public class SubmitReviewRequest {
 
     private int stage = 1;
 
+    private Integer round;
+
     private String stageName;
 
     private java.util.List<Integer> rubricScores;
@@ -126,5 +128,13 @@ public class SubmitReviewRequest {
 
     public void setOverallScore(Double overallScore) {
         this.overallScore = overallScore;
+    }
+
+    public Integer getRound() {
+        return round;
+    }
+
+    public void setRound(Integer round) {
+        this.round = round;
     }
 }

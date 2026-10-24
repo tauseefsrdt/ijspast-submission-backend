@@ -5,9 +5,11 @@ import com.ijspast.journal.dto.request.SubmitReviewRequest;
 import com.ijspast.journal.dto.response.ManuscriptResponseDTO;
 import com.ijspast.journal.dto.response.ReviewResponseDTO;
 import com.ijspast.journal.entity.Manuscript;
+import com.ijspast.journal.entity.ManuscriptFile;
 import com.ijspast.journal.entity.Review;
 import com.ijspast.journal.entity.StatusHistoryItem;
 import com.ijspast.journal.entity.User;
+import com.ijspast.journal.exception.BadRequestException;
 import com.ijspast.journal.exception.ResourceNotFoundException;
 import com.ijspast.journal.exception.UnauthorizedException;
 import com.ijspast.journal.mapper.ManuscriptMapper;
@@ -97,8 +99,36 @@ public class ReviewServiceImpl implements ReviewService {
             throw new UnauthorizedException("You are not assigned to review this manuscript.");
         }
 
+        // Second-Round Review enforcement:
+        // Keep second-round feedback disabled for both reviewers until the Editor clicks "Forward Revisions to Reviewers"
+        boolean isRevisionState = "Revision Submitted".equalsIgnoreCase(manuscript.getStatus())
+                || (manuscript.getFiles() != null && manuscript.getFiles().stream().anyMatch(ManuscriptFile::isRevised))
+                || (manuscript.getAuthorRevisionResponse() != null && !manuscript.getAuthorRevisionResponse().isBlank());
+        boolean isSecondRoundRequest = (request.getRound() != null && request.getRound() == 2)
+                || request.getStage() == 3
+                || Boolean.TRUE.equals(manuscript.getRevisionForwardedToReviewer());
+
+        if (isRevisionState && !Boolean.TRUE.equals(manuscript.getRevisionForwardedToReviewer())) {
+            throw new BadRequestException("Second-round review feedback is disabled for reviewers until the Editor-in-Chief clicks 'Forward Revisions to Reviewers'.");
+        }
+        if ((request.getRound() != null && request.getRound() == 2 || request.getStage() == 3) && !Boolean.TRUE.equals(manuscript.getRevisionForwardedToReviewer())) {
+            throw new BadRequestException("Second-round review feedback is disabled for reviewers until the Editor-in-Chief clicks 'Forward Revisions to Reviewers'.");
+        }
+
         int stage = request.getStage() > 0 ? request.getStage() : 1;
-        String defaultStageName = (stage == 1) ? "Stage 1: Initial Assessment" : "Stage 2: Final Evaluation";
+        int round = (request.getRound() != null && request.getRound() > 0)
+                ? request.getRound()
+                : (stage == 3 || Boolean.TRUE.equals(manuscript.getRevisionForwardedToReviewer()) ? 2 : 1);
+        if (Boolean.TRUE.equals(manuscript.getRevisionForwardedToReviewer()) && stage != 1 && stage != 2) {
+            stage = 3;
+            round = 2;
+        } else if (round == 2) {
+            stage = 3;
+        }
+
+        String defaultStageName = (round == 2 || stage == 3)
+                ? "Round 2: Revision Re-evaluation"
+                : ((stage == 1) ? "Stage 1: Initial Assessment" : "Stage 2: Final Evaluation");
         String stageName = (request.getStageName() != null && !request.getStageName().isBlank())
                 ? request.getStageName().trim()
                 : defaultStageName;
@@ -114,6 +144,7 @@ public class ReviewServiceImpl implements ReviewService {
         review.setReviewer(reviewer);
         review.setReviewerName(reviewer.getName());
         review.setStage(stage);
+        review.setRound(round);
         review.setStageName(stageName);
         review.setRecommendation(request.getRecommendation());
         review.setTechnicalQuality(request.getTechnicalQuality());
@@ -143,7 +174,7 @@ public class ReviewServiceImpl implements ReviewService {
         Review savedReview = reviewRepository.save(review);
 
         // Update Manuscript Status & Feedback
-        if (stage == 2) {
+        if (round == 2 || stage >= 2) {
             manuscript.setStatus("Review Completed");
         } else if (!"Review Completed".equalsIgnoreCase(manuscript.getStatus())) {
             manuscript.setStatus("Under Review");
@@ -153,7 +184,7 @@ public class ReviewServiceImpl implements ReviewService {
         manuscript.setReviewerFeedbackForEditor(request.getCommentsForEditor().trim());
 
         String nowStr = LocalDateTime.now().format(DATE_TIME_FORMAT);
-        String historyStatus = (stage == 2) ? "Review Completed" : "Under Review";
+        String historyStatus = (round == 2 || stage >= 2) ? "Review Completed" : "Under Review";
         String historyDesc = String.format("%s submitted to Editor by %s. Recommendation: %s. Technical quality: %d/5, Originality: %d/5, Clarity: %d/5.",
                 stageName, reviewer.getName(), request.getRecommendation(), request.getTechnicalQuality(), request.getOriginality(), request.getClarity());
 

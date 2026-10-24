@@ -15,6 +15,14 @@ import java.util.stream.Collectors;
 public class ManuscriptMapper {
 
     public ManuscriptResponseDTO toDTO(Manuscript manuscript, boolean maskAuthor) {
+        return toDTO(manuscript, maskAuthor, false);
+    }
+
+    public ManuscriptResponseDTO toAuthorDTO(Manuscript manuscript) {
+        return toDTO(manuscript, false, true);
+    }
+
+    public ManuscriptResponseDTO toDTO(Manuscript manuscript, boolean maskAuthor, boolean maskReviewer) {
         if (manuscript == null) {
             return null;
         }
@@ -63,15 +71,25 @@ public class ManuscriptMapper {
         }
 
         // Assigned reviewer details
-        if (manuscript.getAssignedReviewer() != null) {
-            dto.setAssignedReviewerId(manuscript.getAssignedReviewer().getId());
-        }
-        dto.setAssignedReviewerName(manuscript.getAssignedReviewerName());
+        if (maskReviewer) {
+            dto.setAssignedReviewerId(null);
+            dto.setAssignedReviewerName(null);
+            dto.setAssignedReviewer2Id(null);
+            dto.setAssignedReviewer2Name(null);
+            dto.setReviewerFeedbackForEditor(null);
+        } else {
+            if (manuscript.getAssignedReviewer() != null) {
+                dto.setAssignedReviewerId(manuscript.getAssignedReviewer().getId());
+            }
+            dto.setAssignedReviewerName(manuscript.getAssignedReviewerName());
 
-        if (manuscript.getAssignedReviewer2() != null) {
-            dto.setAssignedReviewer2Id(manuscript.getAssignedReviewer2().getId());
+            if (manuscript.getAssignedReviewer2() != null) {
+                dto.setAssignedReviewer2Id(manuscript.getAssignedReviewer2().getId());
+            }
+            dto.setAssignedReviewer2Name(manuscript.getAssignedReviewer2Name());
+            dto.setReviewerFeedbackForEditor(manuscript.getReviewerFeedbackForEditor());
         }
-        dto.setAssignedReviewer2Name(manuscript.getAssignedReviewer2Name());
+
         dto.setAssignedDate(manuscript.getAssignedDate());
         dto.setReviewDeadline(manuscript.getReviewDeadline());
         dto.setRevisionRequestComments(manuscript.getRevisionRequestComments());
@@ -79,7 +97,6 @@ public class ManuscriptMapper {
             dto.setAuthorRevisionResponse(manuscript.getAuthorRevisionResponse());
         }
         dto.setReviewerFeedbackForAuthor(manuscript.getReviewerFeedbackForAuthor());
-        dto.setReviewerFeedbackForEditor(manuscript.getReviewerFeedbackForEditor());
         dto.setRejectionReason(manuscript.getRejectionReason());
 
         // Publication details
@@ -118,8 +135,32 @@ public class ManuscriptMapper {
         // History items
         if (manuscript.getHistory() != null) {
             final String rawAuthorName = manuscript.getAuthorName();
+            final String r1Name = manuscript.getAssignedReviewerName();
+            final String r2Name = manuscript.getAssignedReviewer2Name();
+
             List<StatusHistoryItemDTO> historyDTOs = manuscript.getHistory().stream()
-                    .map(item -> toHistoryDTO(item, maskAuthor, rawAuthorName))
+                    .filter(item -> {
+                        if (!maskReviewer) return true;
+                        // Requirement 1: Hide all reviewer-related information from Author status history
+                        if (item.getRole() != null && item.getRole().equalsIgnoreCase("Reviewer")) {
+                            return false;
+                        }
+                        if (item.getActor() != null && item.getActor().toLowerCase().contains("reviewer")) {
+                            return false;
+                        }
+                        if (r1Name != null && !r1Name.isBlank() && item.getActor() != null && item.getActor().equalsIgnoreCase(r1Name)) {
+                            return false;
+                        }
+                        if (r2Name != null && !r2Name.isBlank() && item.getActor() != null && item.getActor().equalsIgnoreCase(r2Name)) {
+                            return false;
+                        }
+                        String c = item.getComment() != null ? item.getComment().toLowerCase() : "";
+                        if (c.contains("submitted to editor by") && !"author".equalsIgnoreCase(item.getRole())) {
+                            return false;
+                        }
+                        return true;
+                    })
+                    .map(item -> toHistoryDTO(item, maskAuthor, rawAuthorName, maskReviewer, r1Name, r2Name))
                     .collect(Collectors.toList());
             dto.setHistory(historyDTOs);
         }
@@ -144,6 +185,10 @@ public class ManuscriptMapper {
     }
 
     public StatusHistoryItemDTO toHistoryDTO(StatusHistoryItem item, boolean maskAuthor, String rawAuthorName) {
+        return toHistoryDTO(item, maskAuthor, rawAuthorName, false, null, null);
+    }
+
+    public StatusHistoryItemDTO toHistoryDTO(StatusHistoryItem item, boolean maskAuthor, String rawAuthorName, boolean maskReviewer, String r1Name, String r2Name) {
         if (item == null) {
             return null;
         }
@@ -151,18 +196,35 @@ public class ManuscriptMapper {
         dto.setId(item.getId());
         dto.setStatus(item.getStatus());
         dto.setDate(item.getDate());
-        if (maskAuthor && ("Author".equalsIgnoreCase(item.getRole()) || (rawAuthorName != null && rawAuthorName.equalsIgnoreCase(item.getActor())))) {
+
+        String actor = item.getActor();
+        String role = item.getRole();
+        String comment = item.getComment();
+
+        if (maskAuthor && ("Author".equalsIgnoreCase(role) || (rawAuthorName != null && rawAuthorName.equalsIgnoreCase(actor)))) {
             dto.setActor("Author");
             dto.setRole("Author");
-            String comment = item.getComment();
             if (comment != null && rawAuthorName != null) {
                 comment = comment.replace(rawAuthorName, "Author");
             }
             dto.setComment(comment);
         } else {
-            dto.setActor(item.getActor());
-            dto.setRole(item.getRole());
-            dto.setComment(item.getComment());
+            if (maskReviewer) {
+                if (comment != null) {
+                    if (comment.contains("Assigned to Reviewer")) {
+                        comment = comment.replaceAll("Assigned to Reviewer.*?for", "Assigned for");
+                    }
+                    if (r1Name != null && !r1Name.isBlank()) {
+                        comment = comment.replace(r1Name, "Peer Reviewer");
+                    }
+                    if (r2Name != null && !r2Name.isBlank()) {
+                        comment = comment.replace(r2Name, "Peer Reviewer");
+                    }
+                }
+            }
+            dto.setActor(actor);
+            dto.setRole(role);
+            dto.setComment(comment);
         }
         return dto;
     }

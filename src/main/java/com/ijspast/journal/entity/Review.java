@@ -55,6 +55,9 @@ public class Review {
     @Column(name = "overall_score")
     private Double overallScore;
 
+    @Column(name = "round")
+    private Integer round = 1;
+
     @Column(name = "submitted_at", updatable = false)
     private LocalDateTime submittedAt;
 
@@ -194,5 +197,13 @@ public class Review {
 
     public void setSubmittedAt(LocalDateTime submittedAt) {
         this.submittedAt = submittedAt;
+    }
+
+    public Integer getRound() {
+        return round != null ? round : 1;
+    }
+
+    public void setRound(Integer round) {
+        this.round = round;
     }
 }

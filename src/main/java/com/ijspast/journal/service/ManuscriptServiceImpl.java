@@ -347,7 +347,7 @@ public class ManuscriptServiceImpl implements ManuscriptService {
         User author = getAuthenticatedUser();
         List<Manuscript> list = manuscriptRepository.findByAuthorEmailIgnoreCaseOrderByCreatedAtDesc(author.getEmail());
 
-        return filterManuscripts(list, status, null, search, false);
+        return filterManuscripts(list, status, null, search, false, true);
     }
 
     @Override
@@ -362,7 +362,7 @@ public class ManuscriptServiceImpl implements ManuscriptService {
             throw new UnauthorizedException("You do not have access to view this manuscript.");
         }
 
-        return manuscriptMapper.toDTO(manuscript, false);
+        return manuscriptMapper.toAuthorDTO(manuscript);
     }
 
     @Override
@@ -429,7 +429,7 @@ public class ManuscriptServiceImpl implements ManuscriptService {
                 request.getResponse().trim()
         );
 
-        return manuscriptMapper.toDTO(saved, false);
+        return manuscriptMapper.toAuthorDTO(saved);
     }
 
     @Override
@@ -760,6 +760,10 @@ public class ManuscriptServiceImpl implements ManuscriptService {
     }
 
     private List<ManuscriptResponseDTO> filterManuscripts(List<Manuscript> list, String status, String domain, String search, boolean maskAuthor) {
+        return filterManuscripts(list, status, domain, search, maskAuthor, false);
+    }
+
+    private List<ManuscriptResponseDTO> filterManuscripts(List<Manuscript> list, String status, String domain, String search, boolean maskAuthor, boolean maskReviewer) {
         return list.stream()
                 .filter(m -> {
                     if (status != null && !status.isBlank() && !status.equalsIgnoreCase("all")) {
@@ -783,7 +787,7 @@ public class ManuscriptServiceImpl implements ManuscriptService {
                     }
                     return true;
                 })
-                .map(m -> manuscriptMapper.toDTO(m, maskAuthor))
+                .map(m -> manuscriptMapper.toDTO(m, maskAuthor, maskReviewer))
                 .collect(Collectors.toList());
     }
 
