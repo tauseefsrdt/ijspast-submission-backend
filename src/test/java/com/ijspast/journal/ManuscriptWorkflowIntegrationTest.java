@@ -151,24 +151,29 @@ public class ManuscriptWorkflowIntegrationTest {
                 .andExpect(jsonPath("$.data.assignedReviewerName").value(reviewer.getName()));
 
         // -------------------------------------------------------------
-        // Step 4: Reviewer logs in and views assignment (Author details visible)
+        // Step 4: Reviewer logs in and views assignment (Author details strictly masked for double-blind review)
         // -------------------------------------------------------------
         String reviewerJwt = jwtTokenProvider.generateToken(reviewer.getEmail(), reviewer.getRole().name(), reviewer.getId());
 
         mockMvc.perform(get("/api/v1/reviewer/assignments/" + manuscriptId)
                         .header("Authorization", "Bearer " + reviewerJwt))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.author.name").value("Dr. Jennifer Smith"))
-                .andExpect(jsonPath("$.data.author.email").value(newAuthorEmail));
+                .andExpect(jsonPath("$.data.author.name").value("[Masked for Double-Blind Review]"))
+                .andExpect(jsonPath("$.data.author.email").doesNotExist())
+                .andExpect(jsonPath("$.data.coauthors").doesNotExist());
 
         // -------------------------------------------------------------
-        // Step 5: Reviewer submits scorecard
+        // Step 5: Reviewer submits complete scorecard with rubric scores
         // -------------------------------------------------------------
         SubmitReviewRequest reviewReq = new SubmitReviewRequest();
         reviewReq.setRecommendation("Minor Revision");
         reviewReq.setTechnicalQuality(4);
         reviewReq.setOriginality(5);
         reviewReq.setClarity(4);
+        reviewReq.setStage(2);
+        reviewReq.setStageName("Stage 2: Final Evaluation");
+        reviewReq.setRubricScores(java.util.List.of(4, 5, 4, 4, 5, 4, 5, 4, 4, 5, 5));
+        reviewReq.setOverallScore(4.5);
         reviewReq.setCommentsForEditor("Strong paper with solid derivations. Minor clarifications required in Section 3.");
         reviewReq.setCommentsForAuthor("Please elaborate on the carrier mobility calibration benchmarks in Table 2.");
         reviewReq.setConfidentialComments("High publication potential.");
@@ -179,7 +184,9 @@ public class ManuscriptWorkflowIntegrationTest {
                         .content(objectMapper.writeValueAsString(reviewReq)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.recommendation").value("Minor Revision"))
-                .andExpect(jsonPath("$.data.technicalQuality").value(4));
+                .andExpect(jsonPath("$.data.technicalQuality").value(4))
+                .andExpect(jsonPath("$.data.overallScore").value(4.5))
+                .andExpect(jsonPath("$.data.rubricScores", hasSize(11)));
 
         // Manuscript status should now be 'Review Completed'
         Manuscript updatedPostReview = manuscriptRepository.findById(manuscriptId).orElseThrow();
@@ -200,7 +207,7 @@ public class ManuscriptWorkflowIntegrationTest {
                 .andExpect(jsonPath("$.data.status").value("Revision Requested"));
 
         // -------------------------------------------------------------
-        // Step 7: Author uploads revision
+        // Step 7: Author uploads revision (sent to Editor first)
         // -------------------------------------------------------------
         String authorJwt = jwtTokenProvider.generateToken(createdAuthor.getEmail(), createdAuthor.getRole().name(), createdAuthor.getId());
 
@@ -214,7 +221,20 @@ public class ManuscriptWorkflowIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(revisionSub)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("Revision Submitted"));
+                .andExpect(jsonPath("$.data.status").value("Revision Submitted"))
+                .andExpect(jsonPath("$.data.revisionForwardedToReviewer").value(false));
+
+        // -------------------------------------------------------------
+        // Step 7b: Editor reviews resubmission and explicitly forwards to Reviewer
+        // -------------------------------------------------------------
+        ForwardRevisionRequest forwardReq = new ForwardRevisionRequest(7, "Please re-evaluate Table 2 data.");
+        mockMvc.perform(post("/api/v1/editor/manuscripts/" + manuscriptId + "/forward-revision")
+                        .header("Authorization", "Bearer " + editorJwt)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(forwardReq)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("Under Review"))
+                .andExpect(jsonPath("$.data.revisionForwardedToReviewer").value(true));
 
         // -------------------------------------------------------------
         // Step 8: Editor accepts and publishes the manuscript
@@ -348,5 +368,103 @@ public class ManuscriptWorkflowIntegrationTest {
         // No new account-creation email sent during resubmission
         long emailCountAfterResubmission = emailNotificationLogRepository.count();
         assertThat(emailCountAfterResubmission).isEqualTo(emailCountAfterFirst);
+    }
+
+    @Test
+    @DisplayName("Workflow Requirement: When Reviewer 1 and Reviewer 2 are both assigned, Editor must wait until both submit before sending consolidated feedback")
+    void testDualReviewerConsolidationRequirement() throws Exception {
+        String authorEmail = "dual.review.author." + System.currentTimeMillis() + "@srmu.ac.in";
+        ManuscriptSubmissionRequest submissionReq = new ManuscriptSubmissionRequest();
+        submissionReq.setAuthor(new AuthorInfoRequest("Dr. Priya Sharma", authorEmail, "SRMU", "CSE", "Lucknow", "0000-0002-1234-5678"));
+        submissionReq.setTitle("Dual Reviewer Testing on Neural Architecture Search");
+        submissionReq.setDomain("Artificial Intelligence and Machine Learning (Computing & AI)");
+        submissionReq.setAbstractText("Paper on neural architecture search efficiency.");
+        submissionReq.setKeywords("AI, NAS, Deep Learning");
+        submissionReq.setDeclaration(true);
+        submissionReq.setFile(new FileMetadataRequest("NAS_Paper.pdf", 2500000L, "application/pdf"));
+
+        String subResp = mockMvc.perform(post("/api/v1/manuscripts")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(submissionReq)))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        String manuscriptId = objectMapper.readTree(subResp).path("data").path("manuscriptId").asText();
+
+        // Register Reviewer 1 and Reviewer 2
+        User r1 = userRepository.save(new User("rev_dual_1_" + System.currentTimeMillis(), "Dr. Reviewer One", "rev1." + System.currentTimeMillis() + "@test.edu", "Rev@123", UserRole.ROLE_REVIEWER));
+        User r2 = userRepository.save(new User("rev_dual_2_" + System.currentTimeMillis(), "Dr. Reviewer Two", "rev2." + System.currentTimeMillis() + "@test.edu", "Rev@123", UserRole.ROLE_REVIEWER));
+
+        User editor = userRepository.findByEmailIgnoreCase("editor@ijspast.demo").orElseThrow();
+        String editorJwt = jwtTokenProvider.generateToken(editor.getEmail(), editor.getRole().name(), editor.getId());
+
+        // Assign dual reviewers
+        AssignReviewerRequest assignReq = new AssignReviewerRequest(r1.getId(), r1.getName(), 14);
+        assignReq.setReviewer2Id(r2.getId());
+        assignReq.setReviewer2Name(r2.getName());
+
+        mockMvc.perform(post("/api/v1/editor/manuscripts/" + manuscriptId + "/assign-reviewer")
+                        .header("Authorization", "Bearer " + editorJwt)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(assignReq)))
+                .andExpect(status().isOk());
+
+        // 1. Only Reviewer 1 submits review
+        String r1Jwt = jwtTokenProvider.generateToken(r1.getEmail(), r1.getRole().name(), r1.getId());
+        SubmitReviewRequest r1Review = new SubmitReviewRequest();
+        r1Review.setRecommendation("Major Revision");
+        r1Review.setTechnicalQuality(3);
+        r1Review.setOriginality(4);
+        r1Review.setClarity(3);
+        r1Review.setStage(1);
+        r1Review.setCommentsForAuthor("Reviewer 1 comments: Expand search space benchmark.");
+        r1Review.setCommentsForEditor("Promising but needs more baseline comparisons.");
+
+        mockMvc.perform(post("/api/v1/reviewer/assignments/" + manuscriptId + "/reviews")
+                        .header("Authorization", "Bearer " + r1Jwt)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(r1Review)))
+                .andExpect(status().isCreated());
+
+        // 2. Editor attempts to send revision feedback to author before Reviewer 2 submits -> MUST BE BLOCKED (400 Bad Request)
+        EditorialDecisionRequest earlyDecision = new EditorialDecisionRequest();
+        earlyDecision.setDecision("REQUEST_REVISION");
+        earlyDecision.setComments("Premature revision request.");
+
+        mockMvc.perform(post("/api/v1/editor/manuscripts/" + manuscriptId + "/decision")
+                        .header("Authorization", "Bearer " + editorJwt)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(earlyDecision)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message", org.hamcrest.Matchers.containsString("Both Reviewer 1 and Reviewer 2 must submit their evaluations before consolidated feedback can be sent")));
+
+        // 3. Now Reviewer 2 also submits feedback
+        String r2Jwt = jwtTokenProvider.generateToken(r2.getEmail(), r2.getRole().name(), r2.getId());
+        SubmitReviewRequest r2Review = new SubmitReviewRequest();
+        r2Review.setRecommendation("Minor Revision");
+        r2Review.setTechnicalQuality(4);
+        r2Review.setOriginality(4);
+        r2Review.setClarity(4);
+        r2Review.setStage(1);
+        r2Review.setCommentsForAuthor("Reviewer 2 comments: Clarify GPU training cost in Table 1.");
+        r2Review.setCommentsForEditor("Acceptable after minor GPU efficiency clarifications.");
+
+        mockMvc.perform(post("/api/v1/reviewer/assignments/" + manuscriptId + "/reviews")
+                        .header("Authorization", "Bearer " + r2Jwt)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(r2Review)))
+                .andExpect(status().isCreated());
+
+        // 4. Editor now merges and sends consolidated feedback -> MUST SUCCEED (200 OK)
+        EditorialDecisionRequest consolidatedDecision = new EditorialDecisionRequest();
+        consolidatedDecision.setDecision("REQUEST_REVISION");
+        consolidatedDecision.setComments("=== CONSOLIDATED REVIEW REPORT ===\nReviewer 1: Expand search space.\nReviewer 2: Clarify GPU cost.");
+
+        mockMvc.perform(post("/api/v1/editor/manuscripts/" + manuscriptId + "/decision")
+                        .header("Authorization", "Bearer " + editorJwt)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(consolidatedDecision)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("Revision Requested"))
+                .andExpect(jsonPath("$.data.revisionRequestComments", org.hamcrest.Matchers.containsString("CONSOLIDATED REVIEW REPORT")));
     }
 }

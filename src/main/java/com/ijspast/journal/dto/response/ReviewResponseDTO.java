@@ -13,6 +13,10 @@ public class ReviewResponseDTO {
     private String commentsForEditor;
     private String commentsForAuthor;
     private String confidentialComments;
+    private int stage = 1;
+    private String stageName;
+    private java.util.List<Integer> rubricScores;
+    private Double overallScore;
     private String submittedAt;
 
     public ReviewResponseDTO() {
@@ -106,11 +110,43 @@ public class ReviewResponseDTO {
         this.confidentialComments = confidentialComments;
     }
 
+    public int getStage() {
+        return stage;
+    }
+
+    public void setStage(int stage) {
+        this.stage = stage;
+    }
+
+    public String getStageName() {
+        return stageName;
+    }
+
+    public void setStageName(String stageName) {
+        this.stageName = stageName;
+    }
+
     public String getSubmittedAt() {
         return submittedAt;
     }
 
     public void setSubmittedAt(String submittedAt) {
         this.submittedAt = submittedAt;
+    }
+
+    public java.util.List<Integer> getRubricScores() {
+        return rubricScores;
+    }
+
+    public void setRubricScores(java.util.List<Integer> rubricScores) {
+        this.rubricScores = rubricScores;
+    }
+
+    public Double getOverallScore() {
+        return overallScore;
+    }
+
+    public void setOverallScore(Double overallScore) {
+        this.overallScore = overallScore;
     }
 }

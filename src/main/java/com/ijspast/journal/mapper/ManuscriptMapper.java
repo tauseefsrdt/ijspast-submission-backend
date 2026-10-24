@@ -33,16 +33,24 @@ public class ManuscriptMapper {
         dto.setSimilarityScore(manuscript.getSimilarityScore());
         dto.setCoauthors(manuscript.getCoauthors());
 
-        // Author mapping with optional double-blind masking
+        dto.setRevisionForwardedToReviewer(manuscript.getRevisionForwardedToReviewer());
+
+        // Author mapping with strict double-blind masking
         if (maskAuthor) {
             AuthorInfoDTO maskedAuthor = new AuthorInfoDTO();
             maskedAuthor.setName("[Masked for Double-Blind Review]");
-            maskedAuthor.setEmail("anonymized@ijspast.srmu.ac.in");
-            maskedAuthor.setInstitution("[Affiliation Masked]");
-            maskedAuthor.setCityCountry("[Location Masked]");
-            maskedAuthor.setOrcid("XXXX-XXXX-XXXX-XXXX");
+            maskedAuthor.setEmail(null);
+            maskedAuthor.setInstitution(null);
+            maskedAuthor.setDepartment(null);
+            maskedAuthor.setCityCountry(null);
+            maskedAuthor.setOrcid(null);
             dto.setAuthor(maskedAuthor);
-            dto.setCoauthors("[Masked for Double-Blind Review]");
+            dto.setCoauthors(null);
+
+            // If author revision has not been explicitly forwarded by Editor, mask author response and revised files from reviewer
+            if (!manuscript.getRevisionForwardedToReviewer()) {
+                dto.setAuthorRevisionResponse(null);
+            }
         } else {
             AuthorInfoDTO authorDTO = new AuthorInfoDTO();
             authorDTO.setName(manuscript.getAuthorName());
@@ -59,10 +67,17 @@ public class ManuscriptMapper {
             dto.setAssignedReviewerId(manuscript.getAssignedReviewer().getId());
         }
         dto.setAssignedReviewerName(manuscript.getAssignedReviewerName());
+
+        if (manuscript.getAssignedReviewer2() != null) {
+            dto.setAssignedReviewer2Id(manuscript.getAssignedReviewer2().getId());
+        }
+        dto.setAssignedReviewer2Name(manuscript.getAssignedReviewer2Name());
         dto.setAssignedDate(manuscript.getAssignedDate());
         dto.setReviewDeadline(manuscript.getReviewDeadline());
         dto.setRevisionRequestComments(manuscript.getRevisionRequestComments());
-        dto.setAuthorRevisionResponse(manuscript.getAuthorRevisionResponse());
+        if (!maskAuthor || manuscript.getRevisionForwardedToReviewer()) {
+            dto.setAuthorRevisionResponse(manuscript.getAuthorRevisionResponse());
+        }
         dto.setReviewerFeedbackForAuthor(manuscript.getReviewerFeedbackForAuthor());
         dto.setReviewerFeedbackForEditor(manuscript.getReviewerFeedbackForEditor());
         dto.setRejectionReason(manuscript.getRejectionReason());
@@ -88,17 +103,23 @@ public class ManuscriptMapper {
 
             dto.setFile(toFileDTO(primaryFile));
 
-            List<UploadedFileDTO> revisedDTOs = files.stream()
-                    .filter(ManuscriptFile::isRevised)
-                    .map(this::toFileDTO)
-                    .collect(Collectors.toList());
-            dto.setRevisedFiles(revisedDTOs);
+            // Only expose revised files to reviewer if Editor has explicitly forwarded the revision
+            if (!maskAuthor || manuscript.getRevisionForwardedToReviewer()) {
+                List<UploadedFileDTO> revisedDTOs = files.stream()
+                        .filter(ManuscriptFile::isRevised)
+                        .map(this::toFileDTO)
+                        .collect(Collectors.toList());
+                dto.setRevisedFiles(revisedDTOs);
+            } else {
+                dto.setRevisedFiles(new ArrayList<>());
+            }
         }
 
         // History items
         if (manuscript.getHistory() != null) {
+            final String rawAuthorName = manuscript.getAuthorName();
             List<StatusHistoryItemDTO> historyDTOs = manuscript.getHistory().stream()
-                    .map(this::toHistoryDTO)
+                    .map(item -> toHistoryDTO(item, maskAuthor, rawAuthorName))
                     .collect(Collectors.toList());
             dto.setHistory(historyDTOs);
         }
@@ -122,7 +143,7 @@ public class ManuscriptMapper {
         return dto;
     }
 
-    public StatusHistoryItemDTO toHistoryDTO(StatusHistoryItem item) {
+    public StatusHistoryItemDTO toHistoryDTO(StatusHistoryItem item, boolean maskAuthor, String rawAuthorName) {
         if (item == null) {
             return null;
         }
@@ -130,9 +151,19 @@ public class ManuscriptMapper {
         dto.setId(item.getId());
         dto.setStatus(item.getStatus());
         dto.setDate(item.getDate());
-        dto.setActor(item.getActor());
-        dto.setRole(item.getRole());
-        dto.setComment(item.getComment());
+        if (maskAuthor && ("Author".equalsIgnoreCase(item.getRole()) || (rawAuthorName != null && rawAuthorName.equalsIgnoreCase(item.getActor())))) {
+            dto.setActor("Author");
+            dto.setRole("Author");
+            String comment = item.getComment();
+            if (comment != null && rawAuthorName != null) {
+                comment = comment.replace(rawAuthorName, "Author");
+            }
+            dto.setComment(comment);
+        } else {
+            dto.setActor(item.getActor());
+            dto.setRole(item.getRole());
+            dto.setComment(item.getComment());
+        }
         return dto;
     }
 

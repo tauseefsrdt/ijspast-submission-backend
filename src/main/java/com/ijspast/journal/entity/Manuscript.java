@@ -32,6 +32,10 @@ public class Manuscript {
     @JoinColumn(name = "author_id", nullable = false)
     private User authorUser;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "author_ref_id")
+    private Author author;
+
     @Column(name = "author_name", nullable = false)
     private String authorName;
 
@@ -66,6 +70,21 @@ public class Manuscript {
     @Column(name = "assigned_reviewer_name")
     private String assignedReviewerName;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "assigned_reviewer2_id")
+    private User assignedReviewer2;
+
+    @Column(name = "assigned_reviewer2_name")
+    private String assignedReviewer2Name;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "assigned_reviewer1_ref_id")
+    private Reviewer assignedReviewer1Ref;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "assigned_reviewer2_ref_id")
+    private Reviewer assignedReviewer2Ref;
+
     @Column(name = "assigned_date", length = 32)
     private String assignedDate;
 
@@ -77,6 +96,9 @@ public class Manuscript {
 
     @Column(name = "author_revision_response", columnDefinition = "TEXT")
     private String authorRevisionResponse;
+
+    @Column(name = "revision_forwarded_to_reviewer")
+    private Boolean revisionForwardedToReviewer = false;
 
     @Column(name = "reviewer_feedback_for_author", columnDefinition = "TEXT")
     private String reviewerFeedbackForAuthor;
@@ -193,6 +215,14 @@ public class Manuscript {
         this.authorUser = authorUser;
     }
 
+    public Author getAuthor() {
+        return author;
+    }
+
+    public void setAuthor(Author author) {
+        this.author = author;
+    }
+
     public String getAuthorName() {
         return authorName;
     }
@@ -281,6 +311,38 @@ public class Manuscript {
         this.assignedReviewerName = assignedReviewerName;
     }
 
+    public User getAssignedReviewer2() {
+        return assignedReviewer2;
+    }
+
+    public void setAssignedReviewer2(User assignedReviewer2) {
+        this.assignedReviewer2 = assignedReviewer2;
+    }
+
+    public String getAssignedReviewer2Name() {
+        return assignedReviewer2Name;
+    }
+
+    public void setAssignedReviewer2Name(String assignedReviewer2Name) {
+        this.assignedReviewer2Name = assignedReviewer2Name;
+    }
+
+    public Reviewer getAssignedReviewer1Ref() {
+        return assignedReviewer1Ref;
+    }
+
+    public void setAssignedReviewer1Ref(Reviewer assignedReviewer1Ref) {
+        this.assignedReviewer1Ref = assignedReviewer1Ref;
+    }
+
+    public Reviewer getAssignedReviewer2Ref() {
+        return assignedReviewer2Ref;
+    }
+
+    public void setAssignedReviewer2Ref(Reviewer assignedReviewer2Ref) {
+        this.assignedReviewer2Ref = assignedReviewer2Ref;
+    }
+
     public String getAssignedDate() {
         return assignedDate;
     }
@@ -311,6 +373,14 @@ public class Manuscript {
 
     public void setAuthorRevisionResponse(String authorRevisionResponse) {
         this.authorRevisionResponse = authorRevisionResponse;
+    }
+
+    public Boolean getRevisionForwardedToReviewer() {
+        return revisionForwardedToReviewer != null && revisionForwardedToReviewer;
+    }
+
+    public void setRevisionForwardedToReviewer(Boolean revisionForwardedToReviewer) {
+        this.revisionForwardedToReviewer = revisionForwardedToReviewer;
     }
 
     public String getReviewerFeedbackForAuthor() {

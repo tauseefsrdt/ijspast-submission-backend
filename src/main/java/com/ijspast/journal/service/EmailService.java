@@ -9,8 +9,16 @@ public interface EmailService {
     DispatchedEmailDTO sendAuthorCredentialsEmail(String authorEmail, String authorName, String password,
                                                   String manuscriptId, String manuscriptTitle);
 
+    DispatchedEmailDTO sendReviewerAccountCreationEmail(String reviewerEmail, String reviewerName, String password);
+
     DispatchedEmailDTO sendReviewerInvitationEmail(String reviewerEmail, String reviewerName, String password,
                                                     String manuscriptId, String manuscriptTitle, int deadlineDays);
+
+    DispatchedEmailDTO sendReviewerAssignmentEmail(String reviewerEmail, String reviewerName,
+                                                  String manuscriptId, String manuscriptTitle, int deadlineDays, String notes);
+
+    DispatchedEmailDTO sendRevisionForwardedToReviewerEmail(String reviewerEmail, String reviewerName,
+                                                           String manuscriptId, String manuscriptTitle, int deadlineDays, String editorRemarks);
 
     DispatchedEmailDTO sendReviewCompletedEmail(String editorEmail, String reviewerName,
                                                 String manuscriptId, String manuscriptTitle, String recommendation);

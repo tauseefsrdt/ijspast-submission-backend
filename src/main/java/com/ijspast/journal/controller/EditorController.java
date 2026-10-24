@@ -3,6 +3,7 @@ package com.ijspast.journal.controller;
 import com.ijspast.journal.dto.request.AssignReviewerRequest;
 import com.ijspast.journal.dto.request.CreateReviewerRequest;
 import com.ijspast.journal.dto.request.EditorialDecisionRequest;
+import com.ijspast.journal.dto.request.UpdateReviewerRequest;
 import com.ijspast.journal.dto.response.*;
 import com.ijspast.journal.service.EmailService;
 import com.ijspast.journal.service.ManuscriptService;
@@ -66,12 +67,34 @@ public class EditorController {
                 .body(ApiResponse.success("Reviewer created and invitation email dispatched", created));
     }
 
+    @PutMapping("/reviewers/{id}")
+    public ResponseEntity<ApiResponse<ReviewerProfileDTO>> updateReviewer(
+            @PathVariable String id,
+            @Valid @RequestBody UpdateReviewerRequest request) {
+        ReviewerProfileDTO updated = userService.updateReviewer(id, request);
+        return ResponseEntity.ok(ApiResponse.success("Reviewer updated successfully", updated));
+    }
+
+    @DeleteMapping("/reviewers/{id}")
+    public ResponseEntity<ApiResponse<Void>> deleteReviewer(@PathVariable String id) {
+        userService.deleteReviewer(id);
+        return ResponseEntity.ok(ApiResponse.success("Reviewer deleted successfully", null));
+    }
+
     @PostMapping("/manuscripts/{id}/assign-reviewer")
     public ResponseEntity<ApiResponse<ManuscriptResponseDTO>> assignReviewer(
             @PathVariable String id,
             @Valid @RequestBody AssignReviewerRequest request) {
         ManuscriptResponseDTO updated = manuscriptService.assignReviewer(id, request);
         return ResponseEntity.ok(ApiResponse.success("Reviewer assigned successfully", updated));
+    }
+
+    @PostMapping("/manuscripts/{id}/forward-revision")
+    public ResponseEntity<ApiResponse<ManuscriptResponseDTO>> forwardRevisionToReviewer(
+            @PathVariable String id,
+            @RequestBody(required = false) com.ijspast.journal.dto.request.ForwardRevisionRequest request) {
+        ManuscriptResponseDTO updated = manuscriptService.forwardRevisionToReviewer(id, request);
+        return ResponseEntity.ok(ApiResponse.success("Revision reviewed by Editor and forwarded to Reviewer successfully", updated));
     }
 
     @PostMapping("/manuscripts/{id}/decision")
@@ -94,5 +117,17 @@ public class EditorController {
             @RequestParam(required = false) String search) {
         List<DispatchedEmailDTO> outbox = emailService.getOutboxEmails(type, search);
         return ResponseEntity.ok(ApiResponse.success(outbox));
+    }
+
+    @GetMapping("/authors-table")
+    public ResponseEntity<ApiResponse<List<AuthorTableDTO>>> getAuthorsTable() {
+        List<AuthorTableDTO> list = manuscriptService.getAuthorsTable();
+        return ResponseEntity.ok(ApiResponse.success(list));
+    }
+
+    @GetMapping("/reviewers-table")
+    public ResponseEntity<ApiResponse<List<ReviewerTableDTO>>> getReviewersTable() {
+        List<ReviewerTableDTO> list = manuscriptService.getReviewersTable();
+        return ResponseEntity.ok(ApiResponse.success(list));
     }
 }

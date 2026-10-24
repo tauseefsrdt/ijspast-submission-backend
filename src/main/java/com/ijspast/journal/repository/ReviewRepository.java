@@ -16,7 +16,13 @@ public interface ReviewRepository extends JpaRepository<Review, String> {
 
     List<Review> findByManuscriptIdOrderBySubmittedAtDesc(String manuscriptId);
 
+    List<Review> findByManuscriptIdOrderByStageAscSubmittedAtAsc(String manuscriptId);
+
     List<Review> findByReviewerOrderBySubmittedAtDesc(User reviewer);
 
     Optional<Review> findByManuscriptAndReviewer(Manuscript manuscript, User reviewer);
+
+    List<Review> findByManuscriptAndReviewerOrderByStageAsc(Manuscript manuscript, User reviewer);
+
+    Optional<Review> findByManuscriptAndReviewerAndStage(Manuscript manuscript, User reviewer, int stage);
 }

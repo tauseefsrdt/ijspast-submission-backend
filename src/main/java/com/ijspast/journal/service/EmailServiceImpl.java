@@ -13,6 +13,7 @@ import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -107,6 +108,60 @@ public class EmailServiceImpl implements EmailService {
 
     @Override
     @Transactional
+    public DispatchedEmailDTO sendReviewerAccountCreationEmail(String reviewerEmail, String reviewerName, String password) {
+        String subject = "[IJSPAST] Reviewer Account Created & Login Credentials";
+        String content = "Dear " + reviewerName + ",\n\n"
+                + "Welcome to the Editorial Review Board of the International Journal of Scientific Progress in Applied Science and Technology (IJSPAST).\n\n"
+                + "An official peer-reviewer account has been provisioned for you by the Editor-in-Chief:\n\n"
+                + "Reviewer Login Credentials:\n"
+                + "- Portal URL: " + frontendUrl + "/login\n"
+                + "- Username / Email: " + reviewerEmail + "\n"
+                + "- Password: " + password + "\n\n"
+                + "Please retain these credentials for logging in to your Reviewer Workspace. All subsequent manuscript assignments and notifications will be sent directly to your registered email address.\n\n"
+                + "Double-Blind Protocol: In accordance with our peer-review policies, author identities and institutional affiliations will remain masked during evaluations.\n\n"
+                + "Editorial Office, IJSPAST\n"
+                + "Shri Ramswaroop Memorial University";
+
+        return recordAndDispatch(reviewerEmail, reviewerName, subject, "REVIEWER_ACCOUNT_CREATED", null, content);
+    }
+
+    @Override
+    @Transactional
+    public DispatchedEmailDTO sendReviewerAssignmentEmail(String reviewerEmail, String reviewerName,
+                                                          String manuscriptId, String manuscriptTitle, int deadlineDays, String notes) {
+        String subject = "[IJSPAST] New Manuscript Peer Review Assignment [" + manuscriptId + "]";
+        String content = "Dear " + reviewerName + ",\n\n"
+                + "You have been assigned as an expert peer reviewer for manuscript " + manuscriptId + ":\n"
+                + "Title: \"" + manuscriptTitle + "\"\n"
+                + "Review Deadline: " + deadlineDays + " days (Due: " + LocalDate.now().plusDays(deadlineDays).toString() + ")\n"
+                + (notes != null && !notes.isBlank() ? "Editorial Guidance: " + notes.trim() + "\n\n" : "\n")
+                + "Please log in to the Reviewer Workspace with your existing credentials to inspect the manuscript and complete your scorecard evaluation:\n"
+                + "Portal Login URL: " + frontendUrl + "/login\n\n"
+                + "Double-Blind Protocol: Author identity and affiliation are masked from the manuscript file. All communication must be submitted through the portal to the Editor.\n\n"
+                + "Editorial Secretariat, IJSPAST";
+
+        return recordAndDispatch(reviewerEmail, reviewerName, subject, "REVIEWER_ASSIGNMENT", manuscriptId, content);
+    }
+
+    @Override
+    @Transactional
+    public DispatchedEmailDTO sendRevisionForwardedToReviewerEmail(String reviewerEmail, String reviewerName,
+                                                                   String manuscriptId, String manuscriptTitle, int deadlineDays, String editorRemarks) {
+        String subject = "[IJSPAST] Author Revision Forwarded for Re-Evaluation [" + manuscriptId + "]";
+        String content = "Dear " + reviewerName + ",\n\n"
+                + "The corresponding author has submitted a revised manuscript for " + manuscriptId + ":\n"
+                + "Title: \"" + manuscriptTitle + "\"\n\n"
+                + "The Editor-in-Chief has reviewed the author's resubmission and explicitly forwarded the updated document to you for re-evaluation.\n"
+                + (editorRemarks != null && !editorRemarks.isBlank() ? "Editor Remarks: " + editorRemarks.trim() + "\n\n" : "\n")
+                + "Please log in to your Reviewer Workspace using your existing credentials to inspect the revised manuscript and submit your Stage 2 final evaluation report:\n"
+                + "Portal Login URL: " + frontendUrl + "/login\n\n"
+                + "Editorial Office, IJSPAST";
+
+        return recordAndDispatch(reviewerEmail, reviewerName, subject, "REVISION_FORWARDED", manuscriptId, content);
+    }
+
+    @Override
+    @Transactional
     public DispatchedEmailDTO sendReviewerInvitationEmail(String reviewerEmail, String reviewerName, String password,
                                                           String manuscriptId, String manuscriptTitle, int deadlineDays) {
         String subject = "[IJSPAST] Peer Review Invitation & Portal Credentials [" + manuscriptId + "]";
@@ -145,10 +200,10 @@ public class EmailServiceImpl implements EmailService {
     @Transactional
     public DispatchedEmailDTO sendRevisionRequestEmail(String authorEmail, String authorName,
                                                        String manuscriptId, String manuscriptTitle, String comments) {
-        String subject = "[IJSPAST] Revision Requested for Manuscript [" + manuscriptId + "]";
+        String subject = "[IJSPAST] Consolidated Peer Review Feedback & Revision Requested for [" + manuscriptId + "]";
         String content = "Dear " + authorName + ",\n\n"
-                + "Following peer review of your submission " + manuscriptId + " (\"" + manuscriptTitle + "\"), the Editorial Board has determined that revisions are required before publication can be considered.\n\n"
-                + "Reviewer Comments (Relayed Anonymously):\n"
+                + "Following comprehensive peer review of your submission " + manuscriptId + " (\"" + manuscriptTitle + "\"), the Editorial Board has reviewed and merged the reviewer evaluations into the consolidated report below. Revisions are required before publication can be considered.\n\n"
+                + "Consolidated Peer Review Report & Directives (Relayed Anonymously):\n"
                 + "--------------------------------------------------\n"
                 + comments + "\n"
                 + "--------------------------------------------------\n\n"

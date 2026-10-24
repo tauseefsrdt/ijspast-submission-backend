@@ -13,6 +13,10 @@ public interface UserService {
 
     Map<String, Object> createReviewer(CreateReviewerRequest request);
 
+    ReviewerProfileDTO updateReviewer(String id, com.ijspast.journal.dto.request.UpdateReviewerRequest request);
+
+    void deleteReviewer(String id);
+
     User getCurrentAuthenticatedUser();
 
     User getUserById(String id);

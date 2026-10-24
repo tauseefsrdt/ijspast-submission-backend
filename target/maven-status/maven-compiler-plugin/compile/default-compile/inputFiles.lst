@@ -3,6 +3,7 @@ C:\Users\srdtu\Desktop\Journal-submisson\backend\src\main\java\com\ijspast\journ
 C:\Users\srdtu\Desktop\Journal-submisson\backend\src\main\java\com\ijspast\journal\dto\response\StatusHistoryItemDTO.java
 C:\Users\srdtu\Desktop\Journal-submisson\backend\src\main\java\com\ijspast\journal\entity\Review.java
 C:\Users\srdtu\Desktop\Journal-submisson\backend\src\main\java\com\ijspast\journal\service\ReviewServiceImpl.java
+C:\Users\srdtu\Desktop\Journal-submisson\backend\src\main\java\com\ijspast\journal\dto\request\ForwardRevisionRequest.java
 C:\Users\srdtu\Desktop\Journal-submisson\backend\src\main\java\com\ijspast\journal\service\FileStorageServiceImpl.java
 C:\Users\srdtu\Desktop\Journal-submisson\backend\src\main\java\com\ijspast\journal\repository\StatusHistoryRepository.java
 C:\Users\srdtu\Desktop\Journal-submisson\backend\src\main\java\com\ijspast\journal\dto\response\ReviewResponseDTO.java
@@ -12,7 +13,9 @@ C:\Users\srdtu\Desktop\Journal-submisson\backend\src\main\java\com\ijspast\journ
 C:\Users\srdtu\Desktop\Journal-submisson\backend\src\main\java\com\ijspast\journal\dto\request\EditorialDecisionRequest.java
 C:\Users\srdtu\Desktop\Journal-submisson\backend\src\main\java\com\ijspast\journal\security\UserPrincipal.java
 C:\Users\srdtu\Desktop\Journal-submisson\backend\src\main\java\com\ijspast\journal\dto\request\FileMetadataRequest.java
+C:\Users\srdtu\Desktop\Journal-submisson\backend\src\main\java\com\ijspast\journal\dto\request\UpdateReviewerRequest.java
 C:\Users\srdtu\Desktop\Journal-submisson\backend\src\main\java\com\ijspast\journal\repository\PasswordResetTokenRepository.java
+C:\Users\srdtu\Desktop\Journal-submisson\backend\src\main\java\com\ijspast\journal\dto\response\AuthorTableDTO.java
 C:\Users\srdtu\Desktop\Journal-submisson\backend\src\main\java\com\ijspast\journal\security\JwtAuthenticationFilter.java
 C:\Users\srdtu\Desktop\Journal-submisson\backend\src\main\java\com\ijspast\journal\dto\response\AuthorInfoDTO.java
 C:\Users\srdtu\Desktop\Journal-submisson\backend\src\main\java\com\ijspast\journal\dto\response\ApiResponse.java
@@ -25,6 +28,7 @@ C:\Users\srdtu\Desktop\Journal-submisson\backend\src\main\java\com\ijspast\journ
 C:\Users\srdtu\Desktop\Journal-submisson\backend\src\main\java\com\ijspast\journal\exception\GlobalExceptionHandler.java
 C:\Users\srdtu\Desktop\Journal-submisson\backend\src\main\java\com\ijspast\journal\entity\UserRole.java
 C:\Users\srdtu\Desktop\Journal-submisson\backend\src\main\java\com\ijspast\journal\repository\UserRepository.java
+C:\Users\srdtu\Desktop\Journal-submisson\backend\src\main\java\com\ijspast\journal\entity\Reviewer.java
 C:\Users\srdtu\Desktop\Journal-submisson\backend\src\main\java\com\ijspast\journal\mapper\UserMapper.java
 C:\Users\srdtu\Desktop\Journal-submisson\backend\src\main\java\com\ijspast\journal\security\CustomUserDetailsService.java
 C:\Users\srdtu\Desktop\Journal-submisson\backend\src\main\java\com\ijspast\journal\exception\DuplicateResourceException.java
@@ -43,7 +47,9 @@ C:\Users\srdtu\Desktop\Journal-submisson\backend\src\main\java\com\ijspast\journ
 C:\Users\srdtu\Desktop\Journal-submisson\backend\src\main\java\com\ijspast\journal\entity\PasswordResetToken.java
 C:\Users\srdtu\Desktop\Journal-submisson\backend\src\main\java\com\ijspast\journal\repository\ManuscriptRepository.java
 C:\Users\srdtu\Desktop\Journal-submisson\backend\src\main\java\com\ijspast\journal\dto\response\SubmissionResponseDTO.java
+C:\Users\srdtu\Desktop\Journal-submisson\backend\src\main\java\com\ijspast\journal\entity\Author.java
 C:\Users\srdtu\Desktop\Journal-submisson\backend\src\main\java\com\ijspast\journal\dto\response\UserResponseDTO.java
+C:\Users\srdtu\Desktop\Journal-submisson\backend\src\main\java\com\ijspast\journal\repository\AuthorRepository.java
 C:\Users\srdtu\Desktop\Journal-submisson\backend\src\main\java\com\ijspast\journal\dto\request\RevisionSubmissionRequest.java
 C:\Users\srdtu\Desktop\Journal-submisson\backend\src\main\java\com\ijspast\journal\controller\PublicManuscriptController.java
 C:\Users\srdtu\Desktop\Journal-submisson\backend\src\main\java\com\ijspast\journal\repository\ManuscriptFileRepository.java
@@ -52,6 +58,7 @@ C:\Users\srdtu\Desktop\Journal-submisson\backend\src\main\java\com\ijspast\journ
 C:\Users\srdtu\Desktop\Journal-submisson\backend\src\main\java\com\ijspast\journal\controller\EditorController.java
 C:\Users\srdtu\Desktop\Journal-submisson\backend\src\main\java\com\ijspast\journal\service\AuthService.java
 C:\Users\srdtu\Desktop\Journal-submisson\backend\src\main\java\com\ijspast\journal\dto\request\LoginRequest.java
+C:\Users\srdtu\Desktop\Journal-submisson\backend\src\main\java\com\ijspast\journal\dto\response\ReviewerTableDTO.java
 C:\Users\srdtu\Desktop\Journal-submisson\backend\src\main\java\com\ijspast\journal\entity\User.java
 C:\Users\srdtu\Desktop\Journal-submisson\backend\src\main\java\com\ijspast\journal\dto\request\AssignReviewerRequest.java
 C:\Users\srdtu\Desktop\Journal-submisson\backend\src\main\java\com\ijspast\journal\repository\AccountSetupTokenRepository.java
@@ -62,6 +69,7 @@ C:\Users\srdtu\Desktop\Journal-submisson\backend\src\main\java\com\ijspast\journ
 C:\Users\srdtu\Desktop\Journal-submisson\backend\src\main\java\com\ijspast\journal\config\SecurityConfig.java
 C:\Users\srdtu\Desktop\Journal-submisson\backend\src\main\java\com\ijspast\journal\controller\ReviewerController.java
 C:\Users\srdtu\Desktop\Journal-submisson\backend\src\main\java\com\ijspast\journal\entity\StatusHistoryItem.java
+C:\Users\srdtu\Desktop\Journal-submisson\backend\src\main\java\com\ijspast\journal\repository\ReviewerRepository.java
 C:\Users\srdtu\Desktop\Journal-submisson\backend\src\main\java\com\ijspast\journal\service\AuthServiceImpl.java
 C:\Users\srdtu\Desktop\Journal-submisson\backend\src\main\java\com\ijspast\journal\IjspastJournalApiApplication.java
 C:\Users\srdtu\Desktop\Journal-submisson\backend\src\main\java\com\ijspast\journal\config\CorsConfig.java

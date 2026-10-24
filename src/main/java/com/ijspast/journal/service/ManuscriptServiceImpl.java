@@ -4,17 +4,17 @@ import com.ijspast.journal.dto.request.AssignReviewerRequest;
 import com.ijspast.journal.dto.request.EditorialDecisionRequest;
 import com.ijspast.journal.dto.request.ManuscriptSubmissionRequest;
 import com.ijspast.journal.dto.request.RevisionSubmissionRequest;
+import com.ijspast.journal.dto.response.AuthorTableDTO;
 import com.ijspast.journal.dto.response.DispatchedEmailDTO;
 import com.ijspast.journal.dto.response.ManuscriptResponseDTO;
+import com.ijspast.journal.dto.response.ReviewerTableDTO;
 import com.ijspast.journal.dto.response.SubmissionResponseDTO;
 import com.ijspast.journal.entity.*;
 import com.ijspast.journal.exception.BadRequestException;
 import com.ijspast.journal.exception.ResourceNotFoundException;
 import com.ijspast.journal.exception.UnauthorizedException;
 import com.ijspast.journal.mapper.ManuscriptMapper;
-import com.ijspast.journal.repository.ManuscriptFileRepository;
-import com.ijspast.journal.repository.ManuscriptRepository;
-import com.ijspast.journal.repository.UserRepository;
+import com.ijspast.journal.repository.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.core.Authentication;
@@ -39,6 +39,9 @@ public class ManuscriptServiceImpl implements ManuscriptService {
 
     private final ManuscriptRepository manuscriptRepository;
     private final UserRepository userRepository;
+    private final AuthorRepository authorRepository;
+    private final ReviewerRepository reviewerRepository;
+    private final ReviewRepository reviewRepository;
     private final ManuscriptFileRepository fileRepository;
     private final ManuscriptMapper manuscriptMapper;
     private final FileStorageService fileStorageService;
@@ -47,6 +50,9 @@ public class ManuscriptServiceImpl implements ManuscriptService {
 
     public ManuscriptServiceImpl(ManuscriptRepository manuscriptRepository,
                                  UserRepository userRepository,
+                                 AuthorRepository authorRepository,
+                                 ReviewerRepository reviewerRepository,
+                                 ReviewRepository reviewRepository,
                                  ManuscriptFileRepository fileRepository,
                                  ManuscriptMapper manuscriptMapper,
                                  FileStorageService fileStorageService,
@@ -54,6 +60,9 @@ public class ManuscriptServiceImpl implements ManuscriptService {
                                  PasswordEncoder passwordEncoder) {
         this.manuscriptRepository = manuscriptRepository;
         this.userRepository = userRepository;
+        this.authorRepository = authorRepository;
+        this.reviewerRepository = reviewerRepository;
+        this.reviewRepository = reviewRepository;
         this.fileRepository = fileRepository;
         this.manuscriptMapper = manuscriptMapper;
         this.fileStorageService = fileStorageService;
@@ -148,6 +157,13 @@ public class ManuscriptServiceImpl implements ManuscriptService {
             existing.setAuthorCityCountry(request.getAuthor().getCityCountry().trim());
             existing.setAuthorOrcid(request.getAuthor().getOrcid().trim());
 
+            Author authorEntity = getOrCreateAuthorEntity(authorUser, authorName, email,
+                    request.getAuthor().getInstitution().trim(),
+                    request.getAuthor().getDepartment(),
+                    request.getAuthor().getCityCountry().trim(),
+                    request.getAuthor().getOrcid().trim());
+            existing.setAuthor(authorEntity);
+
             // Handle file upload if a new/revised file is provided
             boolean fileUploaded = false;
             String fileName = null;
@@ -235,6 +251,13 @@ public class ManuscriptServiceImpl implements ManuscriptService {
         manuscript.setAuthorDepartment(request.getAuthor().getDepartment());
         manuscript.setAuthorCityCountry(request.getAuthor().getCityCountry().trim());
         manuscript.setAuthorOrcid(request.getAuthor().getOrcid().trim());
+
+        Author authorEntity = getOrCreateAuthorEntity(authorUser, authorName, email,
+                request.getAuthor().getInstitution().trim(),
+                request.getAuthor().getDepartment(),
+                request.getAuthor().getCityCountry().trim(),
+                request.getAuthor().getOrcid().trim());
+        manuscript.setAuthor(authorEntity);
 
         manuscript.setStatus("Submitted");
         String todayStr = LocalDate.now().toString();
@@ -380,6 +403,7 @@ public class ManuscriptServiceImpl implements ManuscriptService {
 
         // Update Manuscript Status
         manuscript.setStatus("Revision Submitted");
+        manuscript.setRevisionForwardedToReviewer(false);
         manuscript.setAuthorRevisionResponse(request.getResponse().trim());
 
         String nowStr = LocalDateTime.now().format(DATE_TIME_FORMAT);
@@ -389,13 +413,13 @@ public class ManuscriptServiceImpl implements ManuscriptService {
                 nowStr,
                 author.getName(),
                 "Author",
-                "Revised manuscript uploaded: " + fileName + ". Author remarks: " + request.getResponse().trim()
+                "Revised manuscript uploaded: " + fileName + ". Submitted to Editor for assessment. Author remarks: " + request.getResponse().trim()
         );
         manuscript.addHistoryItem(hist);
 
         Manuscript saved = manuscriptRepository.save(manuscript);
 
-        // Notify Editor
+        // Notify Editor ONLY (Author resubmissions are reviewed by Editor before explicit forwarding to Reviewer)
         emailService.sendRevisionSubmittedEmail(
                 "editor@ijspast.demo",
                 "Prof. (Dr.) Vijay Tiwari (Editor-in-Chief)",
@@ -404,18 +428,6 @@ public class ManuscriptServiceImpl implements ManuscriptService {
                 saved.getTitle(),
                 request.getResponse().trim()
         );
-
-        // Notify Reviewer if assigned
-        if (saved.getAssignedReviewer() != null) {
-            emailService.sendRevisionSubmittedEmail(
-                    saved.getAssignedReviewer().getEmail(),
-                    saved.getAssignedReviewerName(),
-                    "Reviewer",
-                    saved.getId(),
-                    saved.getTitle(),
-                    request.getResponse().trim()
-            );
-        }
 
         return manuscriptMapper.toDTO(saved, false);
     }
@@ -442,11 +454,23 @@ public class ManuscriptServiceImpl implements ManuscriptService {
         Manuscript manuscript = manuscriptRepository.findById(manuscriptId)
                 .orElseThrow(() -> new ResourceNotFoundException("Manuscript not found: " + manuscriptId));
 
-        User reviewer = userRepository.findById(request.getReviewerId())
-                .orElseThrow(() -> new ResourceNotFoundException("Reviewer not found: " + request.getReviewerId()));
+        User reviewer1 = userRepository.findById(request.getReviewerId())
+                .orElseThrow(() -> new ResourceNotFoundException("Reviewer 1 not found: " + request.getReviewerId()));
 
-        if (reviewer.getRole() != UserRole.ROLE_REVIEWER) {
-            throw new BadRequestException("Selected user is not registered as a Reviewer.");
+        if (reviewer1.getRole() != UserRole.ROLE_REVIEWER) {
+            throw new BadRequestException("Reviewer 1 is not registered as a Reviewer.");
+        }
+
+        User reviewer2 = null;
+        if (request.getReviewer2Id() != null && !request.getReviewer2Id().isBlank()) {
+            if (request.getReviewer2Id().equals(reviewer1.getId())) {
+                throw new BadRequestException("Paper must be assigned to two distinct reviewers.");
+            }
+            reviewer2 = userRepository.findById(request.getReviewer2Id())
+                    .orElseThrow(() -> new ResourceNotFoundException("Reviewer 2 not found: " + request.getReviewer2Id()));
+            if (reviewer2.getRole() != UserRole.ROLE_REVIEWER) {
+                throw new BadRequestException("Reviewer 2 is not registered as a Reviewer.");
+            }
         }
 
         int deadlineDays = request.getDeadlineDays() > 0 ? request.getDeadlineDays() : 14;
@@ -454,33 +478,126 @@ public class ManuscriptServiceImpl implements ManuscriptService {
         String dateStr = LocalDate.now().toString();
 
         manuscript.setStatus("Under Review");
-        manuscript.setAssignedReviewer(reviewer);
-        manuscript.setAssignedReviewerName(reviewer.getName());
+        manuscript.setAssignedReviewer(reviewer1);
+        manuscript.setAssignedReviewerName(reviewer1.getName());
+        Reviewer reviewer1Ref = getOrCreateReviewerEntity(reviewer1);
+        manuscript.setAssignedReviewer1Ref(reviewer1Ref);
+
+        if (reviewer2 != null) {
+            manuscript.setAssignedReviewer2(reviewer2);
+            manuscript.setAssignedReviewer2Name(reviewer2.getName());
+            Reviewer reviewer2Ref = getOrCreateReviewerEntity(reviewer2);
+            manuscript.setAssignedReviewer2Ref(reviewer2Ref);
+        }
+
         manuscript.setAssignedDate(dateStr);
         manuscript.setReviewDeadline(deadlineStr);
 
         String nowStr = LocalDateTime.now().format(DATE_TIME_FORMAT);
+        String historyComment = (reviewer2 != null)
+                ? String.format("Assigned to Reviewer 1 (%s) and Reviewer 2 (%s) for two-stage peer review evaluation. Due by %s.",
+                        reviewer1.getName(), reviewer2.getName(), deadlineStr)
+                : String.format("Assigned to %s for peer review evaluation. Due by %s.",
+                        reviewer1.getName(), deadlineStr);
+
         StatusHistoryItem historyItem = new StatusHistoryItem(
                 "hist_" + System.currentTimeMillis(),
                 "Under Review",
                 nowStr,
                 editor.getName(),
                 "Editor",
-                "Assigned to " + reviewer.getName() + " for peer review evaluation. Due by " + deadlineStr + "."
+                historyComment
         );
         manuscript.addHistoryItem(historyItem);
 
         Manuscript saved = manuscriptRepository.save(manuscript);
 
-        // Send peer review invitation email
-        emailService.sendReviewerInvitationEmail(
-                reviewer.getEmail(),
-                reviewer.getName(),
-                "Reviewer@123",
+        // Send peer review assignment email notifications (No credentials generated or resent)
+        emailService.sendReviewerAssignmentEmail(
+                reviewer1.getEmail(),
+                reviewer1.getName(),
                 saved.getId(),
                 saved.getTitle(),
-                deadlineDays
+                deadlineDays,
+                request.getNotes()
         );
+
+        if (reviewer2 != null) {
+            emailService.sendReviewerAssignmentEmail(
+                    reviewer2.getEmail(),
+                    reviewer2.getName(),
+                    saved.getId(),
+                    saved.getTitle(),
+                    deadlineDays,
+                    request.getNotes()
+            );
+        }
+
+        return manuscriptMapper.toDTO(saved, false);
+    }
+
+    @Override
+    @Transactional
+    public ManuscriptResponseDTO forwardRevisionToReviewer(String manuscriptId, com.ijspast.journal.dto.request.ForwardRevisionRequest request) {
+        User editor = getAuthenticatedUser();
+        Manuscript manuscript = manuscriptRepository.findById(manuscriptId)
+                .orElseThrow(() -> new ResourceNotFoundException("Manuscript not found: " + manuscriptId));
+
+        if (!"Revision Submitted".equalsIgnoreCase(manuscript.getStatus()) && !"Revision Requested".equalsIgnoreCase(manuscript.getStatus())) {
+            throw new BadRequestException("Manuscript is not currently in Revision Submitted status.");
+        }
+
+        if (manuscript.getAssignedReviewer() == null && manuscript.getAssignedReviewer2() == null) {
+            throw new BadRequestException("No reviewer assigned to this manuscript.");
+        }
+
+        int deadlineDays = (request != null && request.getDeadlineDays() > 0) ? request.getDeadlineDays() : 7;
+        String deadlineStr = LocalDate.now().plusDays(deadlineDays).toString();
+        manuscript.setReviewDeadline(deadlineStr);
+        manuscript.setRevisionForwardedToReviewer(true);
+        manuscript.setStatus("Under Review");
+
+        String nowStr = LocalDateTime.now().format(DATE_TIME_FORMAT);
+        String remarks = (request != null && request.getNotes() != null) ? request.getNotes().trim() : "";
+        String historyComment = "Author revised submission and rebuttal reviewed by Editor (" + editor.getName()
+                + ") and explicitly forwarded to peer reviewer for re-evaluation. Due date: " + deadlineStr + "."
+                + (remarks.isEmpty() ? "" : " Notes: " + remarks);
+
+        StatusHistoryItem hist = new StatusHistoryItem(
+                "hist_" + System.currentTimeMillis(),
+                "Under Review",
+                nowStr,
+                editor.getName(),
+                "Editor",
+                historyComment
+        );
+        manuscript.addHistoryItem(hist);
+
+        Manuscript saved = manuscriptRepository.save(manuscript);
+
+        // Notify Reviewer 1
+        if (saved.getAssignedReviewer() != null) {
+            emailService.sendRevisionForwardedToReviewerEmail(
+                    saved.getAssignedReviewer().getEmail(),
+                    saved.getAssignedReviewerName(),
+                    saved.getId(),
+                    saved.getTitle(),
+                    deadlineDays,
+                    remarks
+            );
+        }
+
+        // Notify Reviewer 2 if assigned
+        if (saved.getAssignedReviewer2() != null) {
+            emailService.sendRevisionForwardedToReviewerEmail(
+                    saved.getAssignedReviewer2().getEmail(),
+                    saved.getAssignedReviewer2Name(),
+                    saved.getId(),
+                    saved.getTitle(),
+                    deadlineDays,
+                    remarks
+            );
+        }
 
         return manuscriptMapper.toDTO(saved, false);
     }
@@ -498,8 +615,36 @@ public class ManuscriptServiceImpl implements ManuscriptService {
         switch (action) {
             case "REQUEST_REVISION" -> {
                 if (request.getComments() == null || request.getComments().isBlank()) {
-                    throw new BadRequestException("Revision comments for the author are required.");
+                    throw new BadRequestException("Consolidated revision comments for the author are required.");
                 }
+
+                // Enforce dual reviewer feedback requirement: Editor must wait until both Reviewer 1 and Reviewer 2 submit
+                boolean hasReviewer1 = manuscript.getAssignedReviewer() != null || (manuscript.getAssignedReviewerName() != null && !manuscript.getAssignedReviewerName().isBlank());
+                boolean hasReviewer2 = manuscript.getAssignedReviewer2() != null || (manuscript.getAssignedReviewer2Name() != null && !manuscript.getAssignedReviewer2Name().isBlank());
+
+                if (hasReviewer1 || hasReviewer2) {
+                    List<Review> manuscriptReviews = reviewRepository.findByManuscriptOrderBySubmittedAtDesc(manuscript);
+
+                    boolean rev1Submitted = !hasReviewer1 || manuscriptReviews.stream().anyMatch(r ->
+                            (manuscript.getAssignedReviewer() != null && r.getReviewer() != null && r.getReviewer().getId().equals(manuscript.getAssignedReviewer().getId())) ||
+                            (manuscript.getAssignedReviewerName() != null && r.getReviewerName() != null && r.getReviewerName().equalsIgnoreCase(manuscript.getAssignedReviewerName()))
+                    );
+
+                    boolean rev2Submitted = !hasReviewer2 || manuscriptReviews.stream().anyMatch(r ->
+                            (manuscript.getAssignedReviewer2() != null && r.getReviewer() != null && r.getReviewer().getId().equals(manuscript.getAssignedReviewer2().getId())) ||
+                            (manuscript.getAssignedReviewer2Name() != null && r.getReviewerName() != null && r.getReviewerName().equalsIgnoreCase(manuscript.getAssignedReviewer2Name()))
+                    );
+
+                    if (hasReviewer1 && hasReviewer2 && (!rev1Submitted || !rev2Submitted)) {
+                        String pending = (!rev1Submitted && !rev2Submitted)
+                                ? "both Reviewer 1 (" + manuscript.getAssignedReviewerName() + ") and Reviewer 2 (" + manuscript.getAssignedReviewer2Name() + ")"
+                                : (!rev1Submitted ? "Reviewer 1 (" + manuscript.getAssignedReviewerName() + ")" : "Reviewer 2 (" + manuscript.getAssignedReviewer2Name() + ")");
+                        throw new BadRequestException("Cannot send consolidated feedback to the Author: Both Reviewer 1 and Reviewer 2 must submit their evaluations before consolidated feedback can be sent. Waiting for " + pending + " to submit feedback.");
+                    } else if (!rev1Submitted && !rev2Submitted) {
+                        throw new BadRequestException("Cannot send review feedback to the Author: Waiting for assigned reviewer to submit evaluation.");
+                    }
+                }
+
                 manuscript.setStatus("Revision Requested");
                 manuscript.setRevisionRequestComments(request.getComments().trim());
                 manuscript.addHistoryItem(new StatusHistoryItem(
@@ -508,7 +653,7 @@ public class ManuscriptServiceImpl implements ManuscriptService {
                         nowStr,
                         editor.getName(),
                         "Editor",
-                        "Editorial revision requested: " + request.getComments().trim()
+                        "Consolidated editorial revision requested: " + request.getComments().trim()
                 ));
                 emailService.sendRevisionRequestEmail(
                         manuscript.getAuthorEmail(),
@@ -700,5 +845,248 @@ public class ManuscriptServiceImpl implements ManuscriptService {
             sb.append(digits.charAt(random.nextInt(digits.length())));
         }
         return sb.toString();
+    }
+
+    private Author getOrCreateAuthorEntity(User authorUser, String name, String email, String institution, String department, String cityCountry, String orcid) {
+        String cleanEmail = email.trim().toLowerCase();
+        return authorRepository.findByEmailIgnoreCase(cleanEmail)
+                .or(() -> authorUser != null ? authorRepository.findByUserId(authorUser.getId()) : Optional.empty())
+                .map(existing -> {
+                    if (authorUser != null && existing.getUser() == null) existing.setUser(authorUser);
+                    if (name != null && !name.isBlank()) existing.setName(name);
+                    if (institution != null && !institution.isBlank()) existing.setInstitution(institution);
+                    if (department != null && !department.isBlank()) existing.setDepartment(department);
+                    if (cityCountry != null && !cityCountry.isBlank()) existing.setCityCountry(cityCountry);
+                    if (orcid != null && !orcid.isBlank()) existing.setOrcid(orcid);
+                    return authorRepository.save(existing);
+                })
+                .orElseGet(() -> {
+                    Author a = new Author();
+                    a.setId("auth_" + System.currentTimeMillis() + "_" + UUID.randomUUID().toString().substring(0, 5));
+                    a.setUser(authorUser);
+                    a.setName(name != null ? name : (authorUser != null ? authorUser.getName() : "Author"));
+                    a.setEmail(cleanEmail);
+                    a.setInstitution(institution != null ? institution : "Academic Institution");
+                    a.setDepartment(department);
+                    a.setCityCountry(cityCountry != null ? cityCountry : "India");
+                    a.setOrcid(orcid != null ? orcid : "0000-0000-0000-0000");
+                    return authorRepository.save(a);
+                });
+    }
+
+    private Reviewer getOrCreateReviewerEntity(User user) {
+        if (user == null) return null;
+        String cleanEmail = user.getEmail().trim().toLowerCase();
+        return reviewerRepository.findByUserId(user.getId())
+                .or(() -> reviewerRepository.findByEmailIgnoreCase(cleanEmail))
+                .orElseGet(() -> {
+                    Reviewer r = new Reviewer();
+                    r.setId("rev_rec_" + System.currentTimeMillis() + "_" + UUID.randomUUID().toString().substring(0, 5));
+                    r.setUser(user);
+                    r.setName(user.getName());
+                    r.setEmail(cleanEmail);
+                    r.setInstitution(user.getInstitution() != null ? user.getInstitution() : "Academic Institution");
+                    r.setDepartment(user.getDepartment() != null ? user.getDepartment() : "Peer Review Board");
+                    r.setDomain(user.getDomain() != null ? user.getDomain() : "Computer Science");
+                    r.setPhone(user.getPhone());
+                    return reviewerRepository.save(r);
+                });
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<AuthorTableDTO> getAuthorsTable() {
+        List<Manuscript> allManuscripts = manuscriptRepository.findAll();
+        Map<String, List<Manuscript>> papersByAuthorEmail = new HashMap<>();
+
+        for (Manuscript m : allManuscripts) {
+            if (m.getAuthorEmail() != null) {
+                String em = m.getAuthorEmail().trim().toLowerCase();
+                papersByAuthorEmail.computeIfAbsent(em, k -> new ArrayList<>()).add(m);
+            }
+        }
+
+        List<Author> authors = authorRepository.findAll();
+        Set<String> processedEmails = new HashSet<>();
+        List<AuthorTableDTO> result = new ArrayList<>();
+
+        for (Author a : authors) {
+            String emailKey = a.getEmail().trim().toLowerCase();
+            processedEmails.add(emailKey);
+
+            AuthorTableDTO dto = new AuthorTableDTO();
+            dto.setId(a.getId());
+            dto.setName(a.getName());
+            dto.setEmail(a.getEmail());
+            dto.setInstitution(a.getInstitution());
+            dto.setDepartment(a.getDepartment());
+            dto.setCityCountry(a.getCityCountry());
+            dto.setOrcid(a.getOrcid());
+            dto.setPhone(a.getPhone());
+
+            List<Manuscript> authorPapers = papersByAuthorEmail.getOrDefault(emailKey, Collections.emptyList());
+            dto.setTotalPapers(authorPapers.size());
+
+            List<AuthorTableDTO.AuthorPaperItemDTO> paperDTOs = new ArrayList<>();
+            for (Manuscript p : authorPapers) {
+                AuthorTableDTO.AuthorPaperItemDTO pDto = new AuthorTableDTO.AuthorPaperItemDTO();
+                pDto.setId(p.getId());
+                pDto.setTitle(p.getTitle());
+                pDto.setDomain(p.getDomain());
+                pDto.setStatus(p.getStatus());
+                pDto.setSubmissionDate(p.getSubmissionDate());
+
+                if (p.getAssignedReviewer() != null) {
+                    User r1 = p.getAssignedReviewer();
+                    AuthorTableDTO.ReviewerBriefDTO r1Dto = new AuthorTableDTO.ReviewerBriefDTO(
+                            r1.getId(), r1.getName(), r1.getEmail(), r1.getInstitution(), r1.getDomain()
+                    );
+                    r1Dto.setStage1Submitted(reviewRepository.findByManuscriptAndReviewerAndStage(p, r1, 1).isPresent());
+                    r1Dto.setStage2Submitted(reviewRepository.findByManuscriptAndReviewerAndStage(p, r1, 2).isPresent());
+                    pDto.setReviewer1(r1Dto);
+                }
+
+                if (p.getAssignedReviewer2() != null) {
+                    User r2 = p.getAssignedReviewer2();
+                    AuthorTableDTO.ReviewerBriefDTO r2Dto = new AuthorTableDTO.ReviewerBriefDTO(
+                            r2.getId(), r2.getName(), r2.getEmail(), r2.getInstitution(), r2.getDomain()
+                    );
+                    r2Dto.setStage1Submitted(reviewRepository.findByManuscriptAndReviewerAndStage(p, r2, 1).isPresent());
+                    r2Dto.setStage2Submitted(reviewRepository.findByManuscriptAndReviewerAndStage(p, r2, 2).isPresent());
+                    pDto.setReviewer2(r2Dto);
+                }
+
+                paperDTOs.add(pDto);
+            }
+            dto.setPapers(paperDTOs);
+            result.add(dto);
+        }
+
+        for (Map.Entry<String, List<Manuscript>> entry : papersByAuthorEmail.entrySet()) {
+            if (!processedEmails.contains(entry.getKey()) && !entry.getValue().isEmpty()) {
+                Manuscript first = entry.getValue().get(0);
+                AuthorTableDTO dto = new AuthorTableDTO();
+                dto.setId("auth_m_" + first.getId());
+                dto.setName(first.getAuthorName());
+                dto.setEmail(first.getAuthorEmail());
+                dto.setInstitution(first.getAuthorInstitution());
+                dto.setDepartment(first.getAuthorDepartment());
+                dto.setCityCountry(first.getAuthorCityCountry());
+                dto.setOrcid(first.getAuthorOrcid());
+                dto.setTotalPapers(entry.getValue().size());
+
+                List<AuthorTableDTO.AuthorPaperItemDTO> paperDTOs = new ArrayList<>();
+                for (Manuscript p : entry.getValue()) {
+                    AuthorTableDTO.AuthorPaperItemDTO pDto = new AuthorTableDTO.AuthorPaperItemDTO();
+                    pDto.setId(p.getId());
+                    pDto.setTitle(p.getTitle());
+                    pDto.setDomain(p.getDomain());
+                    pDto.setStatus(p.getStatus());
+                    pDto.setSubmissionDate(p.getSubmissionDate());
+
+                    if (p.getAssignedReviewer() != null) {
+                        User r1 = p.getAssignedReviewer();
+                        AuthorTableDTO.ReviewerBriefDTO r1Dto = new AuthorTableDTO.ReviewerBriefDTO(
+                                r1.getId(), r1.getName(), r1.getEmail(), r1.getInstitution(), r1.getDomain()
+                        );
+                        r1Dto.setStage1Submitted(reviewRepository.findByManuscriptAndReviewerAndStage(p, r1, 1).isPresent());
+                        r1Dto.setStage2Submitted(reviewRepository.findByManuscriptAndReviewerAndStage(p, r1, 2).isPresent());
+                        pDto.setReviewer1(r1Dto);
+                    }
+                    if (p.getAssignedReviewer2() != null) {
+                        User r2 = p.getAssignedReviewer2();
+                        AuthorTableDTO.ReviewerBriefDTO r2Dto = new AuthorTableDTO.ReviewerBriefDTO(
+                                r2.getId(), r2.getName(), r2.getEmail(), r2.getInstitution(), r2.getDomain()
+                        );
+                        r2Dto.setStage1Submitted(reviewRepository.findByManuscriptAndReviewerAndStage(p, r2, 1).isPresent());
+                        r2Dto.setStage2Submitted(reviewRepository.findByManuscriptAndReviewerAndStage(p, r2, 2).isPresent());
+                        pDto.setReviewer2(r2Dto);
+                    }
+                    paperDTOs.add(pDto);
+                }
+                dto.setPapers(paperDTOs);
+                result.add(dto);
+            }
+        }
+
+        return result;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ReviewerTableDTO> getReviewersTable() {
+        List<User> reviewerUsers = userRepository.findByRoleOrderByNameAsc(UserRole.ROLE_REVIEWER);
+        List<Manuscript> allManuscripts = manuscriptRepository.findAll();
+
+        List<ReviewerTableDTO> result = new ArrayList<>();
+
+        for (User ru : reviewerUsers) {
+            ReviewerTableDTO dto = new ReviewerTableDTO();
+            dto.setId(ru.getId());
+            dto.setName(ru.getName());
+            dto.setEmail(ru.getEmail());
+            dto.setInstitution(ru.getInstitution());
+            dto.setDepartment(ru.getDepartment());
+            dto.setDomain(ru.getDomain());
+            dto.setPhone(ru.getPhone());
+
+            List<ReviewerTableDTO.ReviewerPaperAssignmentDTO> assignedList = new ArrayList<>();
+            int completedCount = 0;
+            int activeCount = 0;
+
+            for (Manuscript m : allManuscripts) {
+                boolean isRev1 = m.getAssignedReviewer() != null && m.getAssignedReviewer().getId().equals(ru.getId());
+                boolean isRev2 = m.getAssignedReviewer2() != null && m.getAssignedReviewer2().getId().equals(ru.getId());
+
+                if (isRev1 || isRev2) {
+                    ReviewerTableDTO.ReviewerPaperAssignmentDTO assignment = new ReviewerTableDTO.ReviewerPaperAssignmentDTO();
+                    assignment.setPaperId(m.getId());
+                    assignment.setPaperTitle(m.getTitle());
+                    assignment.setDomain(m.getDomain());
+                    assignment.setStatus(m.getStatus());
+                    assignment.setAssignedRole(isRev1 ? "Reviewer 1" : "Reviewer 2");
+                    assignment.setAssignedDate(m.getAssignedDate());
+                    assignment.setReviewDeadline(m.getReviewDeadline());
+
+                    ReviewerTableDTO.AuthorBriefDTO authorBrief = new ReviewerTableDTO.AuthorBriefDTO(
+                            m.getAuthor() != null ? m.getAuthor().getId() : "auth_" + m.getAuthorEmail(),
+                            m.getAuthorName(),
+                            m.getAuthorEmail(),
+                            m.getAuthorInstitution(),
+                            m.getAuthorCityCountry(),
+                            m.getAuthorOrcid()
+                    );
+                    assignment.setAuthor(authorBrief);
+
+                    User coUser = isRev1 ? m.getAssignedReviewer2() : m.getAssignedReviewer();
+                    if (coUser != null) {
+                        assignment.setCoReviewer(new ReviewerTableDTO.CoReviewerBriefDTO(
+                                coUser.getId(), coUser.getName(), coUser.getEmail(), coUser.getInstitution()
+                        ));
+                    }
+
+                    boolean s1 = reviewRepository.findByManuscriptAndReviewerAndStage(m, ru, 1).isPresent();
+                    boolean s2 = reviewRepository.findByManuscriptAndReviewerAndStage(m, ru, 2).isPresent();
+                    assignment.setStage1Completed(s1);
+                    assignment.setStage2Completed(s2);
+
+                    if (s1 && s2) {
+                        completedCount++;
+                    } else {
+                        activeCount++;
+                    }
+
+                    assignedList.add(assignment);
+                }
+            }
+
+            dto.setActiveAssignmentsCount(activeCount);
+            dto.setCompletedReviewsCount(completedCount);
+            dto.setTotalAssignedPapers(assignedList.size());
+            dto.setAssignedPapers(assignedList);
+            result.add(dto);
+        }
+
+        return result;
     }
 }

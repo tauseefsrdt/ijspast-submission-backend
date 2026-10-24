@@ -22,6 +22,40 @@ CREATE TABLE IF NOT EXISTS users (
     INDEX idx_users_role (role)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS authors (
+    id VARCHAR(64) PRIMARY KEY,
+    user_id VARCHAR(64) UNIQUE,
+    name VARCHAR(255) NOT NULL,
+    email VARCHAR(255) NOT NULL UNIQUE,
+    institution VARCHAR(255) NOT NULL,
+    department VARCHAR(255),
+    city_country VARCHAR(255) NOT NULL,
+    orcid VARCHAR(64) NOT NULL,
+    phone VARCHAR(64),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_author_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
+    INDEX idx_authors_email (email)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS reviewers (
+    id VARCHAR(64) PRIMARY KEY,
+    user_id VARCHAR(64) UNIQUE,
+    name VARCHAR(255) NOT NULL,
+    email VARCHAR(255) NOT NULL UNIQUE,
+    institution VARCHAR(255) NOT NULL,
+    department VARCHAR(255),
+    domain VARCHAR(255) NOT NULL,
+    phone VARCHAR(64),
+    active_assignments_count INT DEFAULT 0,
+    completed_reviews_count INT DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_reviewer_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
+    INDEX idx_reviewers_email (email),
+    INDEX idx_reviewers_domain (domain)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS manuscripts (
     id VARCHAR(64) PRIMARY KEY,
     title VARCHAR(500) NOT NULL,
@@ -30,6 +64,7 @@ CREATE TABLE IF NOT EXISTS manuscripts (
     keywords VARCHAR(500) NOT NULL,
     coauthors TEXT,
     author_id VARCHAR(64) NOT NULL,
+    author_ref_id VARCHAR(64),
     author_name VARCHAR(255) NOT NULL,
     author_email VARCHAR(255) NOT NULL,
     author_institution VARCHAR(255) NOT NULL,
@@ -41,10 +76,15 @@ CREATE TABLE IF NOT EXISTS manuscripts (
     similarity_score INT DEFAULT 6,
     assigned_reviewer_id VARCHAR(64),
     assigned_reviewer_name VARCHAR(255),
+    assigned_reviewer2_id VARCHAR(64),
+    assigned_reviewer2_name VARCHAR(255),
+    assigned_reviewer1_ref_id VARCHAR(64),
+    assigned_reviewer2_ref_id VARCHAR(64),
     assigned_date VARCHAR(32),
     review_deadline VARCHAR(32),
     revision_request_comments TEXT,
     author_revision_response TEXT,
+    revision_forwarded_to_reviewer BOOLEAN DEFAULT FALSE,
     reviewer_feedback_for_author TEXT,
     reviewer_feedback_for_editor TEXT,
     rejection_reason TEXT,
@@ -55,10 +95,18 @@ CREATE TABLE IF NOT EXISTS manuscripts (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT fk_manuscript_author FOREIGN KEY (author_id) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_manuscript_author_ref FOREIGN KEY (author_ref_id) REFERENCES authors(id) ON DELETE SET NULL,
     CONSTRAINT fk_manuscript_reviewer FOREIGN KEY (assigned_reviewer_id) REFERENCES users(id) ON DELETE SET NULL,
+    CONSTRAINT fk_manuscript_reviewer2 FOREIGN KEY (assigned_reviewer2_id) REFERENCES users(id) ON DELETE SET NULL,
+    CONSTRAINT fk_manuscript_reviewer1_ref FOREIGN KEY (assigned_reviewer1_ref_id) REFERENCES reviewers(id) ON DELETE SET NULL,
+    CONSTRAINT fk_manuscript_reviewer2_ref FOREIGN KEY (assigned_reviewer2_ref_id) REFERENCES reviewers(id) ON DELETE SET NULL,
     INDEX idx_manuscripts_author (author_id),
+    INDEX idx_manuscripts_author_ref (author_ref_id),
     INDEX idx_manuscripts_status (status),
-    INDEX idx_manuscripts_reviewer (assigned_reviewer_id)
+    INDEX idx_manuscripts_reviewer (assigned_reviewer_id),
+    INDEX idx_manuscripts_reviewer2 (assigned_reviewer2_id),
+    INDEX idx_manuscripts_reviewer1_ref (assigned_reviewer1_ref_id),
+    INDEX idx_manuscripts_reviewer2_ref (assigned_reviewer2_ref_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS manuscript_files (
@@ -100,6 +148,10 @@ CREATE TABLE IF NOT EXISTS review_reports (
     comments_for_editor TEXT NOT NULL,
     comments_for_author TEXT NOT NULL,
     confidential_comments TEXT,
+    stage INT NOT NULL DEFAULT 1,
+    stage_name VARCHAR(128) DEFAULT 'Stage 1: Initial Assessment',
+    rubric_scores TEXT,
+    overall_score DOUBLE,
     submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_review_manuscript FOREIGN KEY (manuscript_id) REFERENCES manuscripts(id) ON DELETE CASCADE,
     CONSTRAINT fk_review_reviewer FOREIGN KEY (reviewer_id) REFERENCES users(id) ON DELETE CASCADE,

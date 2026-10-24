@@ -43,6 +43,18 @@ public class Review {
     @Column(name = "confidential_comments", columnDefinition = "TEXT")
     private String confidentialComments;
 
+    @Column(name = "stage", nullable = false)
+    private int stage = 1;
+
+    @Column(name = "stage_name", length = 128)
+    private String stageName = "Stage 1: Initial Assessment";
+
+    @Column(name = "rubric_scores", columnDefinition = "TEXT")
+    private String rubricScores;
+
+    @Column(name = "overall_score")
+    private Double overallScore;
+
     @Column(name = "submitted_at", updatable = false)
     private LocalDateTime submittedAt;
 
@@ -142,6 +154,38 @@ public class Review {
 
     public void setConfidentialComments(String confidentialComments) {
         this.confidentialComments = confidentialComments;
+    }
+
+    public int getStage() {
+        return stage;
+    }
+
+    public void setStage(int stage) {
+        this.stage = stage;
+    }
+
+    public String getStageName() {
+        return stageName;
+    }
+
+    public void setStageName(String stageName) {
+        this.stageName = stageName;
+    }
+
+    public String getRubricScores() {
+        return rubricScores;
+    }
+
+    public void setRubricScores(String rubricScores) {
+        this.rubricScores = rubricScores;
+    }
+
+    public Double getOverallScore() {
+        return overallScore;
+    }
+
+    public void setOverallScore(Double overallScore) {
+        this.overallScore = overallScore;
     }
 
     public LocalDateTime getSubmittedAt() {

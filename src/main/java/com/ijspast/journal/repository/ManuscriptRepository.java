@@ -23,6 +23,9 @@ public interface ManuscriptRepository extends JpaRepository<Manuscript, String> 
 
     List<Manuscript> findByAssignedReviewerOrderByCreatedAtDesc(User reviewer);
 
+    @Query("SELECT m FROM Manuscript m WHERE (m.assignedReviewer = :reviewer OR m.assignedReviewer2 = :reviewer) ORDER BY m.createdAt DESC")
+    List<Manuscript> findByAssignedReviewerOrAssignedReviewer2OrderByCreatedAtDesc(@Param("reviewer") User reviewer);
+
     List<Manuscript> findByStatusIgnoreCase(String status);
 
     List<Manuscript> findByStatusOrderByCreatedAtDesc(String status);
@@ -32,9 +35,9 @@ public interface ManuscriptRepository extends JpaRepository<Manuscript, String> 
     @Query("SELECT COUNT(m) FROM Manuscript m")
     long countTotalManuscripts();
 
-    @Query("SELECT COUNT(m) FROM Manuscript m WHERE m.assignedReviewer.id = :reviewerId AND m.status IN ('Under Review', 'Reviewer Assigned')")
+    @Query("SELECT COUNT(m) FROM Manuscript m WHERE (m.assignedReviewer.id = :reviewerId OR m.assignedReviewer2.id = :reviewerId) AND m.status IN ('Under Review', 'Reviewer Assigned')")
     long countActiveAssignmentsByReviewerId(@Param("reviewerId") String reviewerId);
 
-    @Query("SELECT COUNT(m) FROM Manuscript m WHERE m.assignedReviewer.id = :reviewerId AND m.status IN ('Review Completed', 'Revision Requested', 'Accepted', 'Published')")
+    @Query("SELECT COUNT(m) FROM Manuscript m WHERE (m.assignedReviewer.id = :reviewerId OR m.assignedReviewer2.id = :reviewerId) AND m.status IN ('Review Completed', 'Revision Requested', 'Accepted', 'Published')")
     long countCompletedReviewsByReviewerId(@Param("reviewerId") String reviewerId);
 }

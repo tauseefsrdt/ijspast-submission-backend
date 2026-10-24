@@ -24,10 +24,13 @@ public class ManuscriptResponseDTO {
     private Integer similarityScore;
     private String assignedReviewerId;
     private String assignedReviewerName;
+    private String assignedReviewer2Id;
+    private String assignedReviewer2Name;
     private String assignedDate;
     private String reviewDeadline;
     private String revisionRequestComments;
     private String authorRevisionResponse;
+    private Boolean revisionForwardedToReviewer = false;
     private String reviewerFeedbackForAuthor;
     private String reviewerFeedbackForEditor;
     private String rejectionReason;
@@ -157,6 +160,22 @@ public class ManuscriptResponseDTO {
         this.assignedReviewerName = assignedReviewerName;
     }
 
+    public String getAssignedReviewer2Id() {
+        return assignedReviewer2Id;
+    }
+
+    public void setAssignedReviewer2Id(String assignedReviewer2Id) {
+        this.assignedReviewer2Id = assignedReviewer2Id;
+    }
+
+    public String getAssignedReviewer2Name() {
+        return assignedReviewer2Name;
+    }
+
+    public void setAssignedReviewer2Name(String assignedReviewer2Name) {
+        this.assignedReviewer2Name = assignedReviewer2Name;
+    }
+
     public String getAssignedDate() {
         return assignedDate;
     }
@@ -187,6 +206,14 @@ public class ManuscriptResponseDTO {
 
     public void setAuthorRevisionResponse(String authorRevisionResponse) {
         this.authorRevisionResponse = authorRevisionResponse;
+    }
+
+    public Boolean getRevisionForwardedToReviewer() {
+        return revisionForwardedToReviewer != null && revisionForwardedToReviewer;
+    }
+
+    public void setRevisionForwardedToReviewer(Boolean revisionForwardedToReviewer) {
+        this.revisionForwardedToReviewer = revisionForwardedToReviewer;
     }
 
     public String getReviewerFeedbackForAuthor() {

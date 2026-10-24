@@ -29,6 +29,14 @@ public class SubmitReviewRequest {
 
     private String confidentialComments;
 
+    private int stage = 1;
+
+    private String stageName;
+
+    private java.util.List<Integer> rubricScores;
+
+    private Double overallScore;
+
     public SubmitReviewRequest() {
     }
 
@@ -86,5 +94,37 @@ public class SubmitReviewRequest {
 
     public void setConfidentialComments(String confidentialComments) {
         this.confidentialComments = confidentialComments;
+    }
+
+    public int getStage() {
+        return stage;
+    }
+
+    public void setStage(int stage) {
+        this.stage = stage;
+    }
+
+    public String getStageName() {
+        return stageName;
+    }
+
+    public void setStageName(String stageName) {
+        this.stageName = stageName;
+    }
+
+    public java.util.List<Integer> getRubricScores() {
+        return rubricScores;
+    }
+
+    public void setRubricScores(java.util.List<Integer> rubricScores) {
+        this.rubricScores = rubricScores;
+    }
+
+    public Double getOverallScore() {
+        return overallScore;
+    }
+
+    public void setOverallScore(Double overallScore) {
+        this.overallScore = overallScore;
     }
 }

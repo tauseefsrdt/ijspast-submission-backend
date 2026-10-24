@@ -27,9 +27,15 @@ public interface ManuscriptService {
 
     ManuscriptResponseDTO assignReviewer(String manuscriptId, AssignReviewerRequest request);
 
+    ManuscriptResponseDTO forwardRevisionToReviewer(String manuscriptId, com.ijspast.journal.dto.request.ForwardRevisionRequest request);
+
     ManuscriptResponseDTO makeEditorialDecision(String manuscriptId, EditorialDecisionRequest request);
 
     List<ManuscriptResponseDTO> getPublishedManuscripts(String search, String domain);
 
     ManuscriptFile getAuthorizedFile(String fileId);
+
+    List<com.ijspast.journal.dto.response.AuthorTableDTO> getAuthorsTable();
+
+    List<com.ijspast.journal.dto.response.ReviewerTableDTO> getReviewersTable();
 }
