@@ -1,0 +1,148 @@
+package com.ijspast.journal.mapper;
+
+import com.ijspast.journal.dto.response.*;
+import com.ijspast.journal.entity.Manuscript;
+import com.ijspast.journal.entity.ManuscriptFile;
+import com.ijspast.journal.entity.StatusHistoryItem;
+import org.springframework.stereotype.Component;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Collectors;
+
+@Component
+public class ManuscriptMapper {
+
+    public ManuscriptResponseDTO toDTO(Manuscript manuscript, boolean maskAuthor) {
+        if (manuscript == null) {
+            return null;
+        }
+
+        ManuscriptResponseDTO dto = new ManuscriptResponseDTO();
+        dto.setId(manuscript.getId());
+        dto.setTitle(manuscript.getTitle());
+        dto.setDomain(manuscript.getDomain());
+        dto.setAbstractText(manuscript.getAbstractText());
+        dto.setKeywords(parseKeywords(manuscript.getKeywords()));
+        dto.setStatus(manuscript.getStatus());
+        dto.setSubmissionDate(manuscript.getSubmissionDate());
+        if (manuscript.getUpdatedAt() != null) {
+            dto.setUpdatedAt(manuscript.getUpdatedAt().toString());
+        }
+        dto.setSimilarityScore(manuscript.getSimilarityScore());
+        dto.setCoauthors(manuscript.getCoauthors());
+
+        // Author mapping with optional double-blind masking
+        if (maskAuthor) {
+            AuthorInfoDTO maskedAuthor = new AuthorInfoDTO();
+            maskedAuthor.setName("[Masked for Double-Blind Review]");
+            maskedAuthor.setEmail("anonymized@ijspast.srmu.ac.in");
+            maskedAuthor.setInstitution("[Affiliation Masked]");
+            maskedAuthor.setCityCountry("[Location Masked]");
+            maskedAuthor.setOrcid("XXXX-XXXX-XXXX-XXXX");
+            dto.setAuthor(maskedAuthor);
+            dto.setCoauthors("[Masked for Double-Blind Review]");
+        } else {
+            AuthorInfoDTO authorDTO = new AuthorInfoDTO();
+            authorDTO.setName(manuscript.getAuthorName());
+            authorDTO.setEmail(manuscript.getAuthorEmail());
+            authorDTO.setInstitution(manuscript.getAuthorInstitution());
+            authorDTO.setDepartment(manuscript.getAuthorDepartment());
+            authorDTO.setCityCountry(manuscript.getAuthorCityCountry());
+            authorDTO.setOrcid(manuscript.getAuthorOrcid());
+            dto.setAuthor(authorDTO);
+        }
+
+        // Assigned reviewer details
+        if (manuscript.getAssignedReviewer() != null) {
+            dto.setAssignedReviewerId(manuscript.getAssignedReviewer().getId());
+        }
+        dto.setAssignedReviewerName(manuscript.getAssignedReviewerName());
+        dto.setAssignedDate(manuscript.getAssignedDate());
+        dto.setReviewDeadline(manuscript.getReviewDeadline());
+        dto.setRevisionRequestComments(manuscript.getRevisionRequestComments());
+        dto.setAuthorRevisionResponse(manuscript.getAuthorRevisionResponse());
+        dto.setReviewerFeedbackForAuthor(manuscript.getReviewerFeedbackForAuthor());
+        dto.setReviewerFeedbackForEditor(manuscript.getReviewerFeedbackForEditor());
+        dto.setRejectionReason(manuscript.getRejectionReason());
+
+        // Publication details
+        if (manuscript.getPublicationDoi() != null || manuscript.getPublicationVolume() != null) {
+            PublicationDetailsDTO pub = new PublicationDetailsDTO();
+            pub.setDoi(manuscript.getPublicationDoi());
+            pub.setVolume(manuscript.getPublicationVolume());
+            pub.setIssue(manuscript.getPublicationIssue());
+            pub.setPublishedDate(manuscript.getPublicationDate());
+            dto.setPublicationDetails(pub);
+        }
+
+        // Files mapping
+        List<ManuscriptFile> files = manuscript.getFiles();
+        if (files != null && !files.isEmpty()) {
+            // Find base file (not revised or lowest version)
+            ManuscriptFile primaryFile = files.stream()
+                    .filter(f -> !f.isRevised())
+                    .findFirst()
+                    .orElse(files.get(0));
+
+            dto.setFile(toFileDTO(primaryFile));
+
+            List<UploadedFileDTO> revisedDTOs = files.stream()
+                    .filter(ManuscriptFile::isRevised)
+                    .map(this::toFileDTO)
+                    .collect(Collectors.toList());
+            dto.setRevisedFiles(revisedDTOs);
+        }
+
+        // History items
+        if (manuscript.getHistory() != null) {
+            List<StatusHistoryItemDTO> historyDTOs = manuscript.getHistory().stream()
+                    .map(this::toHistoryDTO)
+                    .collect(Collectors.toList());
+            dto.setHistory(historyDTOs);
+        }
+
+        return dto;
+    }
+
+    public UploadedFileDTO toFileDTO(ManuscriptFile file) {
+        if (file == null) {
+            return null;
+        }
+        UploadedFileDTO dto = new UploadedFileDTO();
+        dto.setName(file.getName());
+        dto.setSize(file.getSize());
+        dto.setType(file.getType());
+        if (file.getUploadedAt() != null) {
+            dto.setUploadedAt(file.getUploadedAt().toString());
+        }
+        dto.setVersion(file.getVersion());
+        dto.setUrl("/api/v1/files/" + file.getId() + "/download");
+        return dto;
+    }
+
+    public StatusHistoryItemDTO toHistoryDTO(StatusHistoryItem item) {
+        if (item == null) {
+            return null;
+        }
+        StatusHistoryItemDTO dto = new StatusHistoryItemDTO();
+        dto.setId(item.getId());
+        dto.setStatus(item.getStatus());
+        dto.setDate(item.getDate());
+        dto.setActor(item.getActor());
+        dto.setRole(item.getRole());
+        dto.setComment(item.getComment());
+        return dto;
+    }
+
+    private List<String> parseKeywords(String keywordsStr) {
+        if (keywordsStr == null || keywordsStr.trim().isEmpty()) {
+            return new ArrayList<>();
+        }
+        return Arrays.stream(keywordsStr.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .collect(Collectors.toList());
+    }
+}

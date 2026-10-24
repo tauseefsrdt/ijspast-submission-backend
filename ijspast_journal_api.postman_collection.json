@@ -1,0 +1,398 @@
+{
+  "info": {
+    "name": "IJSPAST Journal Portal REST API",
+    "_postman_id": "7f0985a2-9fa0-4dc6-8ba3-1a2f64b67912",
+    "description": "Comprehensive Postman collection for IJSPAST Journal Portal - Spring Boot 3 & MySQL",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080/api/v1",
+      "type": "string"
+    },
+    {
+      "key": "authToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "manuscriptId",
+      "value": "IJSPAST-2026-0001",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Authentication",
+      "item": [
+        {
+          "name": "Login - Editor",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"editor@ijspast.demo\",\n  \"password\": \"Editor@123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "Login - Author",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"author@ijspast.demo\",\n  \"password\": \"Author@123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "Login - Reviewer",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"reviewer@ijspast.demo\",\n  \"password\": \"Reviewer@123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "Current User Session (/auth/me)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "me"]
+            }
+          }
+        },
+        {
+          "name": "Forgot Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"author@ijspast.demo\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/forgot-password",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "forgot-password"]
+            }
+          }
+        },
+        {
+          "name": "Change Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{authToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"Author@123\",\n  \"newPassword\": \"Author@NewPass2026\",\n  \"confirmPassword\": \"Author@NewPass2026\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/change-password",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "change-password"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Public Manuscript Submission & Archive",
+      "item": [
+        {
+          "name": "Submit Manuscript (Public)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"author\": {\n    \"name\": \"Dr. Priya Sharma\",\n    \"email\": \"dr.sharma@research.ac.in\",\n    \"institution\": \"SRMU Lucknow\",\n    \"department\": \"Computer Science & Engineering\",\n    \"cityCountry\": \"Lucknow, India\",\n    \"orcid\": \"0000-0002-1825-0097\"\n  },\n  \"title\": \"Autonomous Edge Intelligence in Distributed Precision Agriculture\",\n  \"domain\": \"Artificial Intelligence and Machine Learning (Computing & AI)\",\n  \"abstractText\": \"This research develops self-calibrating gradient neural routines for sub-watt agricultural sensor nodes...\",\n  \"keywords\": \"Edge AI, Agriculture, Neural Networks, IoT\",\n  \"coauthors\": \"Dr. Rajiv Roy\",\n  \"declaration\": true,\n  \"file\": {\n    \"name\": \"Edge_AI_Paper.pdf\",\n    \"size\": 3400000,\n    \"type\": \"application/pdf\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/manuscripts",
+              "host": ["{{baseUrl}}"],
+              "path": ["manuscripts"]
+            }
+          }
+        },
+        {
+          "name": "Open Access Archive (/published)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/published",
+              "host": ["{{baseUrl}}"],
+              "path": ["published"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Author Endpoints",
+      "item": [
+        {
+          "name": "List My Manuscripts",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/author/manuscripts",
+              "host": ["{{baseUrl}}"],
+              "path": ["author", "manuscripts"]
+            }
+          }
+        },
+        {
+          "name": "Get My Manuscript Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/author/manuscripts/{{manuscriptId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["author", "manuscripts", "{{manuscriptId}}"]
+            }
+          }
+        },
+        {
+          "name": "Submit Author Revision",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{authToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"response\": \"Revised Section 4 to include comparative benchmarking data.\",\n  \"file\": {\n    \"name\": \"Revised_Manuscript_v2.pdf\",\n    \"size\": 3600000,\n    \"type\": \"application/pdf\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/author/manuscripts/{{manuscriptId}}/revision",
+              "host": ["{{baseUrl}}"],
+              "path": ["author", "manuscripts", "{{manuscriptId}}", "revision"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Editor Endpoints",
+      "item": [
+        {
+          "name": "List All Manuscripts (Editor)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/editor/manuscripts",
+              "host": ["{{baseUrl}}"],
+              "path": ["editor", "manuscripts"]
+            }
+          }
+        },
+        {
+          "name": "Get Reviewers Directory",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/editor/reviewers",
+              "host": ["{{baseUrl}}"],
+              "path": ["editor", "reviewers"]
+            }
+          }
+        },
+        {
+          "name": "Enroll / Invite New Reviewer",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{authToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Prof. Ananya Sen\",\n  \"email\": \"ananya.sen@iitb.ac.in\",\n  \"phone\": \"+91 98765 11223\",\n  \"institution\": \"IIT Bombay\",\n  \"domain\": \"Artificial Intelligence and Machine Learning (Computing & AI)\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/editor/reviewers",
+              "host": ["{{baseUrl}}"],
+              "path": ["editor", "reviewers"]
+            }
+          }
+        },
+        {
+          "name": "Assign Reviewer to Manuscript",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{authToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reviewerId\": \"rev_01\",\n  \"reviewerName\": \"Dr. Meera Iyer\",\n  \"deadlineDays\": 14\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/editor/manuscripts/{{manuscriptId}}/assign-reviewer",
+              "host": ["{{baseUrl}}"],
+              "path": ["editor", "manuscripts", "{{manuscriptId}}", "assign-reviewer"]
+            }
+          }
+        },
+        {
+          "name": "Editorial Decision - Request Revision",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{authToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"decision\": \"REQUEST_REVISION\",\n  \"comments\": \"Please revise Section 3 to clarify the baseline model performance.\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/editor/manuscripts/{{manuscriptId}}/decision",
+              "host": ["{{baseUrl}}"],
+              "path": ["editor", "manuscripts", "{{manuscriptId}}", "decision"]
+            }
+          }
+        },
+        {
+          "name": "Editorial Decision - Publish",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{authToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"decision\": \"PUBLISH\",\n  \"doi\": \"10.5555/ijspast.2026.0001\",\n  \"volume\": \"Vol. 14\",\n  \"issue\": \"Issue 4\",\n  \"publishedDate\": \"2026-10-23\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/editor/manuscripts/{{manuscriptId}}/decision",
+              "host": ["{{baseUrl}}"],
+              "path": ["editor", "manuscripts", "{{manuscriptId}}", "decision"]
+            }
+          }
+        },
+        {
+          "name": "View Outbox Audit Logs",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/editor/outbox",
+              "host": ["{{baseUrl}}"],
+              "path": ["editor", "outbox"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Reviewer Endpoints",
+      "item": [
+        {
+          "name": "List Reviewer Assignments",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/reviewer/assignments",
+              "host": ["{{baseUrl}}"],
+              "path": ["reviewer", "assignments"]
+            }
+          }
+        },
+        {
+          "name": "Get Assignment Details (Double-Blind)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/reviewer/assignments/{{manuscriptId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["reviewer", "assignments", "{{manuscriptId}}"]
+            }
+          }
+        },
+        {
+          "name": "Submit Peer Review Scorecard",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{authToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"recommendation\": \"Minor Revision\",\n  \"technicalQuality\": 4,\n  \"originality\": 5,\n  \"clarity\": 4,\n  \"commentsForEditor\": \"Methodology is rigorous. Minor typos in Table 1.\",\n  \"commentsForAuthor\": \"Very well presented work. Please clarify equation (4) notation.\",\n  \"confidentialComments\": \"Recommend for publication after minor fixes.\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/reviewer/assignments/{{manuscriptId}}/reviews",
+              "host": ["{{baseUrl}}"],
+              "path": ["reviewer", "assignments", "{{manuscriptId}}", "reviews"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
