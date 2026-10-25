@@ -31,6 +31,8 @@ public class ManuscriptResponseDTO {
     private String revisionRequestComments;
     private String authorRevisionResponse;
     private Boolean revisionForwardedToReviewer = false;
+    private Boolean stage2EnabledByEditor = false;
+
     private String reviewerFeedbackForAuthor;
     private String reviewerFeedbackForEditor;
     private String rejectionReason;
@@ -214,6 +216,14 @@ public class ManuscriptResponseDTO {
 
     public void setRevisionForwardedToReviewer(Boolean revisionForwardedToReviewer) {
         this.revisionForwardedToReviewer = revisionForwardedToReviewer;
+    }
+
+    public Boolean getStage2EnabledByEditor() {
+        return stage2EnabledByEditor != null && stage2EnabledByEditor;
+    }
+
+    public void setStage2EnabledByEditor(Boolean stage2EnabledByEditor) {
+        this.stage2EnabledByEditor = stage2EnabledByEditor;
     }
 
     public String getReviewerFeedbackForAuthor() {

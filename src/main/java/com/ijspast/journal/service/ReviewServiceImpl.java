@@ -126,6 +126,15 @@ public class ReviewServiceImpl implements ReviewService {
             stage = 3;
         }
 
+        // ── Stage 2 Access Control ──
+        // Stage 2 submissions are blocked until the Editor has explicitly enabled Stage 2,
+        // which itself requires all donor reviewer (Stage 1) feedback to have been submitted first.
+        if (stage == 2 && !Boolean.TRUE.equals(manuscript.getStage2EnabledByEditor())) {
+            throw new BadRequestException(
+                    "Stage 2 review submission is not permitted yet. The Editor must first enable Stage 2 after all assigned reviewers have submitted their Stage 1 (donor reviewer) feedback."
+            );
+        }
+
         String defaultStageName = (round == 2 || stage == 3)
                 ? "Round 2: Revision Re-evaluation"
                 : ((stage == 1) ? "Stage 1: Initial Assessment" : "Stage 2: Final Evaluation");

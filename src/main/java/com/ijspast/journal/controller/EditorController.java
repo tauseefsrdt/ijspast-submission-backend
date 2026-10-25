@@ -89,6 +89,13 @@ public class EditorController {
         return ResponseEntity.ok(ApiResponse.success("Reviewer assigned successfully", updated));
     }
 
+    @PostMapping("/manuscripts/{id}/enable-stage2")
+    public ResponseEntity<ApiResponse<ManuscriptResponseDTO>> enableStage2(
+            @PathVariable String id) {
+        ManuscriptResponseDTO updated = manuscriptService.enableStage2Review(id);
+        return ResponseEntity.ok(ApiResponse.success("Stage 2 review enabled for assigned reviewer(s)", updated));
+    }
+
     @PostMapping("/manuscripts/{id}/forward-revision")
     public ResponseEntity<ApiResponse<ManuscriptResponseDTO>> forwardRevisionToReviewer(
             @PathVariable String id,

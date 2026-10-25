@@ -27,6 +27,8 @@ public interface ManuscriptService {
 
     ManuscriptResponseDTO assignReviewer(String manuscriptId, AssignReviewerRequest request);
 
+    ManuscriptResponseDTO enableStage2Review(String manuscriptId);
+
     ManuscriptResponseDTO forwardRevisionToReviewer(String manuscriptId, com.ijspast.journal.dto.request.ForwardRevisionRequest request);
 
     ManuscriptResponseDTO makeEditorialDecision(String manuscriptId, EditorialDecisionRequest request);

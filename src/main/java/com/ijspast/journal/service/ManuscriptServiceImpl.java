@@ -538,6 +538,60 @@ public class ManuscriptServiceImpl implements ManuscriptService {
 
     @Override
     @Transactional
+    public ManuscriptResponseDTO enableStage2Review(String manuscriptId) {
+        User editor = getAuthenticatedUser();
+        Manuscript manuscript = manuscriptRepository.findById(manuscriptId)
+                .orElseThrow(() -> new ResourceNotFoundException("Manuscript not found: " + manuscriptId));
+
+        if (manuscript.getAssignedReviewer() == null && manuscript.getAssignedReviewer2() == null) {
+            throw new BadRequestException("No reviewer is assigned to this manuscript. Assign a reviewer before enabling Stage 2.");
+        }
+
+        // ── Donor Reviewer Feedback Prerequisite ──
+        // Stage 2 must remain disabled until ALL assigned reviewers have submitted their Stage 1 feedback.
+        // This is a mandatory prerequisite — donor reviewer feedback must be submitted first.
+        boolean hasReviewer1 = manuscript.getAssignedReviewer() != null;
+        boolean hasReviewer2 = manuscript.getAssignedReviewer2() != null;
+
+        boolean rev1Stage1Submitted = !hasReviewer1 ||
+                reviewRepository.findByManuscriptAndReviewerAndStage(manuscript, manuscript.getAssignedReviewer(), 1).isPresent();
+        boolean rev2Stage1Submitted = !hasReviewer2 ||
+                reviewRepository.findByManuscriptAndReviewerAndStage(manuscript, manuscript.getAssignedReviewer2(), 1).isPresent();
+
+        if (!rev1Stage1Submitted || !rev2Stage1Submitted) {
+            String pending;
+            if (!rev1Stage1Submitted && !rev2Stage1Submitted) {
+                pending = "both Reviewer 1 (" + manuscript.getAssignedReviewerName() + ") and Reviewer 2 (" + manuscript.getAssignedReviewer2Name() + ")";
+            } else if (!rev1Stage1Submitted) {
+                pending = "Reviewer 1 (" + manuscript.getAssignedReviewerName() + ")";
+            } else {
+                pending = "Reviewer 2 (" + manuscript.getAssignedReviewer2Name() + ")";
+            }
+            throw new BadRequestException(
+                    "Cannot enable Stage 2: Donor reviewer feedback (Stage 1) has not been submitted by " + pending +
+                    ". All assigned reviewers must submit their Stage 1 feedback before Stage 2 can be enabled."
+            );
+        }
+
+        manuscript.setStage2EnabledByEditor(true);
+
+        String nowStr = LocalDateTime.now().format(DATE_TIME_FORMAT);
+        StatusHistoryItem hist = new StatusHistoryItem(
+                "hist_" + System.currentTimeMillis(),
+                manuscript.getStatus(),
+                nowStr,
+                editor.getName(),
+                "Editor",
+                "Stage 2 Final Evaluation enabled by Editor for assigned reviewer(s). Reviewer(s) may now proceed to the comprehensive Stage 2 scorecard."
+        );
+        manuscript.addHistoryItem(hist);
+
+        Manuscript saved = manuscriptRepository.save(manuscript);
+        return manuscriptMapper.toDTO(saved, false);
+    }
+
+    @Override
+    @Transactional
     public ManuscriptResponseDTO forwardRevisionToReviewer(String manuscriptId, com.ijspast.journal.dto.request.ForwardRevisionRequest request) {
         User editor = getAuthenticatedUser();
         Manuscript manuscript = manuscriptRepository.findById(manuscriptId)

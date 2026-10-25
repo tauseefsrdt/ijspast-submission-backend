@@ -100,6 +100,9 @@ public class Manuscript {
     @Column(name = "revision_forwarded_to_reviewer")
     private Boolean revisionForwardedToReviewer = false;
 
+    @Column(name = "stage2_enabled_by_editor")
+    private Boolean stage2EnabledByEditor = false;
+
     @Column(name = "reviewer_feedback_for_author", columnDefinition = "TEXT")
     private String reviewerFeedbackForAuthor;
 
@@ -381,6 +384,14 @@ public class Manuscript {
 
     public void setRevisionForwardedToReviewer(Boolean revisionForwardedToReviewer) {
         this.revisionForwardedToReviewer = revisionForwardedToReviewer;
+    }
+
+    public Boolean getStage2EnabledByEditor() {
+        return stage2EnabledByEditor != null && stage2EnabledByEditor;
+    }
+
+    public void setStage2EnabledByEditor(Boolean stage2EnabledByEditor) {
+        this.stage2EnabledByEditor = stage2EnabledByEditor;
     }
 
     public String getReviewerFeedbackForAuthor() {

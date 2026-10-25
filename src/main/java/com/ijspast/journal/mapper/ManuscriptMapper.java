@@ -42,6 +42,7 @@ public class ManuscriptMapper {
         dto.setCoauthors(manuscript.getCoauthors());
 
         dto.setRevisionForwardedToReviewer(manuscript.getRevisionForwardedToReviewer());
+        dto.setStage2EnabledByEditor(manuscript.getStage2EnabledByEditor());
 
         // Author mapping with strict double-blind masking
         if (maskAuthor) {
