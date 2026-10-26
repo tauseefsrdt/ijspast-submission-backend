@@ -16,6 +16,10 @@ public class Review {
     private Manuscript manuscript;
 
     @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "assignment_id")
+    private ReviewAssignment assignment;
+
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "reviewer_id", nullable = false)
     private User reviewer;
 
@@ -85,6 +89,14 @@ public class Review {
 
     public void setManuscript(Manuscript manuscript) {
         this.manuscript = manuscript;
+    }
+
+    public ReviewAssignment getAssignment() {
+        return assignment;
+    }
+
+    public void setAssignment(ReviewAssignment assignment) {
+        this.assignment = assignment;
     }
 
     public User getReviewer() {

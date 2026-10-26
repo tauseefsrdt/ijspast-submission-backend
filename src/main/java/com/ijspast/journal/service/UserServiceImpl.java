@@ -7,6 +7,7 @@ import com.ijspast.journal.entity.Manuscript;
 import com.ijspast.journal.entity.Review;
 import com.ijspast.journal.entity.Reviewer;
 import com.ijspast.journal.entity.User;
+import com.ijspast.journal.entity.UserProfile;
 import com.ijspast.journal.entity.UserRole;
 import com.ijspast.journal.exception.DuplicateResourceException;
 import com.ijspast.journal.exception.ResourceNotFoundException;
@@ -15,6 +16,7 @@ import com.ijspast.journal.mapper.UserMapper;
 import com.ijspast.journal.repository.ManuscriptRepository;
 import com.ijspast.journal.repository.ReviewRepository;
 import com.ijspast.journal.repository.ReviewerRepository;
+import com.ijspast.journal.repository.UserProfileRepository;
 import com.ijspast.journal.repository.UserRepository;
 import com.ijspast.journal.security.UserPrincipal;
 import org.springframework.security.core.Authentication;
@@ -31,6 +33,7 @@ import java.util.stream.Collectors;
 public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepository;
+    private final UserProfileRepository userProfileRepository;
     private final ReviewerRepository reviewerRepository;
     private final ReviewRepository reviewRepository;
     private final ManuscriptRepository manuscriptRepository;
@@ -39,6 +42,7 @@ public class UserServiceImpl implements UserService {
     private final EmailService emailService;
 
     public UserServiceImpl(UserRepository userRepository,
+                           UserProfileRepository userProfileRepository,
                            ReviewerRepository reviewerRepository,
                            ReviewRepository reviewRepository,
                            ManuscriptRepository manuscriptRepository,
@@ -46,6 +50,7 @@ public class UserServiceImpl implements UserService {
                            PasswordEncoder passwordEncoder,
                            EmailService emailService) {
         this.userRepository = userRepository;
+        this.userProfileRepository = userProfileRepository;
         this.reviewerRepository = reviewerRepository;
         this.reviewRepository = reviewRepository;
         this.manuscriptRepository = manuscriptRepository;
@@ -122,6 +127,18 @@ public class UserServiceImpl implements UserService {
         reviewerEntity.setPhone(savedReviewer.getPhone());
         reviewerRepository.save(reviewerEntity);
 
+        // Synchronize with enterprise 3NF user_profiles table
+        UserProfile userProfile = userProfileRepository.findByUserId(savedReviewer.getId()).orElse(new UserProfile());
+        if (userProfile.getId() == null) {
+            userProfile.setId("profile_" + savedReviewer.getId());
+            userProfile.setUser(savedReviewer);
+        }
+        userProfile.setInstitution(savedReviewer.getInstitution());
+        userProfile.setDepartment(savedReviewer.getDepartment());
+        userProfile.setDomainExpertise(savedReviewer.getDomain());
+        userProfile.setPhone(savedReviewer.getPhone());
+        userProfileRepository.save(userProfile);
+
         // Send account creation and initial login credentials email
         emailService.sendReviewerAccountCreationEmail(
                 email,
@@ -182,6 +199,18 @@ public class UserServiceImpl implements UserService {
         revEntity.setDomain(savedUser.getDomain());
         revEntity.setPhone(savedUser.getPhone());
         reviewerRepository.save(revEntity);
+
+        // Update enterprise 3NF user_profiles table
+        UserProfile userProfile = userProfileRepository.findByUserId(savedUser.getId()).orElse(new UserProfile());
+        if (userProfile.getId() == null) {
+            userProfile.setId("profile_" + savedUser.getId());
+            userProfile.setUser(savedUser);
+        }
+        userProfile.setInstitution(savedUser.getInstitution());
+        userProfile.setDepartment(savedUser.getDepartment());
+        userProfile.setDomainExpertise(savedUser.getDomain());
+        userProfile.setPhone(savedUser.getPhone());
+        userProfileRepository.save(userProfile);
 
         // Update reviewer name in any assigned manuscripts
         List<Manuscript> allManuscripts = manuscriptRepository.findAll();

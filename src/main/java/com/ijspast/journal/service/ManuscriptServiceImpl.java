@@ -43,6 +43,10 @@ public class ManuscriptServiceImpl implements ManuscriptService {
     private final ReviewerRepository reviewerRepository;
     private final ReviewRepository reviewRepository;
     private final ManuscriptFileRepository fileRepository;
+    private final ReviewAssignmentRepository reviewAssignmentRepository;
+    private final UserProfileRepository userProfileRepository;
+    private final ManuscriptRevisionRepository manuscriptRevisionRepository;
+    private final EditorialDecisionRepository editorialDecisionRepository;
     private final ManuscriptMapper manuscriptMapper;
     private final FileStorageService fileStorageService;
     private final EmailService emailService;
@@ -54,6 +58,10 @@ public class ManuscriptServiceImpl implements ManuscriptService {
                                  ReviewerRepository reviewerRepository,
                                  ReviewRepository reviewRepository,
                                  ManuscriptFileRepository fileRepository,
+                                 ReviewAssignmentRepository reviewAssignmentRepository,
+                                 UserProfileRepository userProfileRepository,
+                                 ManuscriptRevisionRepository manuscriptRevisionRepository,
+                                 EditorialDecisionRepository editorialDecisionRepository,
                                  ManuscriptMapper manuscriptMapper,
                                  FileStorageService fileStorageService,
                                  EmailService emailService,
@@ -64,6 +72,10 @@ public class ManuscriptServiceImpl implements ManuscriptService {
         this.reviewerRepository = reviewerRepository;
         this.reviewRepository = reviewRepository;
         this.fileRepository = fileRepository;
+        this.reviewAssignmentRepository = reviewAssignmentRepository;
+        this.userProfileRepository = userProfileRepository;
+        this.manuscriptRevisionRepository = manuscriptRevisionRepository;
+        this.editorialDecisionRepository = editorialDecisionRepository;
         this.manuscriptMapper = manuscriptMapper;
         this.fileStorageService = fileStorageService;
         this.emailService = emailService;
@@ -259,6 +271,18 @@ public class ManuscriptServiceImpl implements ManuscriptService {
                 request.getAuthor().getOrcid().trim());
         manuscript.setAuthor(authorEntity);
 
+        // Sync normalized UserProfile
+        String profId = "prof_" + authorUser.getId();
+        UserProfile userProfile = userProfileRepository.findByUser(authorUser)
+                .orElse(new UserProfile(profId, authorUser, request.getAuthor().getInstitution().trim(),
+                        request.getAuthor().getDepartment(), request.getAuthor().getCityCountry().trim(),
+                        request.getAuthor().getOrcid().trim(), null, authorUser.getPhone()));
+        userProfile.setInstitution(request.getAuthor().getInstitution().trim());
+        userProfile.setDepartment(request.getAuthor().getDepartment());
+        userProfile.setCityCountry(request.getAuthor().getCityCountry().trim());
+        userProfile.setOrcid(request.getAuthor().getOrcid().trim());
+        userProfileRepository.save(userProfile);
+
         manuscript.setStatus("Submitted");
         String todayStr = LocalDate.now().toString();
         manuscript.setSubmissionDate(todayStr);
@@ -419,6 +443,17 @@ public class ManuscriptServiceImpl implements ManuscriptService {
 
         Manuscript saved = manuscriptRepository.save(manuscript);
 
+        // Record normalized ManuscriptRevision
+        String revId = "rev_" + saved.getId() + "_v" + revisedVersion;
+        ManuscriptRevision revisionRecord = new ManuscriptRevision(
+                revId,
+                saved,
+                revisedVersion,
+                revisedFile,
+                request.getResponse().trim()
+        );
+        manuscriptRevisionRepository.save(revisionRecord);
+
         // Notify Editor ONLY (Author resubmissions are reviewed by Editor before explicit forwarding to Reviewer)
         emailService.sendRevisionSubmittedEmail(
                 "editor@ijspast.demo",
@@ -512,6 +547,32 @@ public class ManuscriptServiceImpl implements ManuscriptService {
 
         Manuscript saved = manuscriptRepository.save(manuscript);
 
+        // Sync normalized ReviewAssignment records
+        LocalDate assignedDateObj = LocalDate.now();
+        LocalDate reviewDeadlineObj = assignedDateObj.plusDays(deadlineDays);
+
+        String asgnId1 = "asgn_" + saved.getId() + "_" + reviewer1.getId() + "_r1";
+        ReviewAssignment assignment1 = reviewAssignmentRepository
+                .findByManuscriptAndReviewerAndRoundNumber(saved, reviewer1, 1)
+                .orElse(new ReviewAssignment(asgnId1, saved, reviewer1, 1, assignedDateObj, reviewDeadlineObj, request.getNotes()));
+        assignment1.setAssignedDate(assignedDateObj);
+        assignment1.setReviewDeadline(reviewDeadlineObj);
+        assignment1.setNotes(request.getNotes());
+        assignment1.setAssignmentStatus("ASSIGNED");
+        reviewAssignmentRepository.save(assignment1);
+
+        if (reviewer2 != null) {
+            String asgnId2 = "asgn_" + saved.getId() + "_" + reviewer2.getId() + "_r1";
+            ReviewAssignment assignment2 = reviewAssignmentRepository
+                    .findByManuscriptAndReviewerAndRoundNumber(saved, reviewer2, 1)
+                    .orElse(new ReviewAssignment(asgnId2, saved, reviewer2, 1, assignedDateObj, reviewDeadlineObj, request.getNotes()));
+            assignment2.setAssignedDate(assignedDateObj);
+            assignment2.setReviewDeadline(reviewDeadlineObj);
+            assignment2.setNotes(request.getNotes());
+            assignment2.setAssignmentStatus("ASSIGNED");
+            reviewAssignmentRepository.save(assignment2);
+        }
+
         // Send peer review assignment email notifications (No credentials generated or resent)
         emailService.sendReviewerAssignmentEmail(
                 reviewer1.getEmail(),
@@ -587,6 +648,13 @@ public class ManuscriptServiceImpl implements ManuscriptService {
         manuscript.addHistoryItem(hist);
 
         Manuscript saved = manuscriptRepository.save(manuscript);
+
+        reviewAssignmentRepository.findByManuscriptIdOrderByRoundNumberAscAssignedDateAsc(manuscriptId)
+                .forEach(a -> {
+                    a.setStage2Enabled(true);
+                    reviewAssignmentRepository.save(a);
+                });
+
         return manuscriptMapper.toDTO(saved, false);
     }
 
@@ -628,6 +696,12 @@ public class ManuscriptServiceImpl implements ManuscriptService {
         manuscript.addHistoryItem(hist);
 
         Manuscript saved = manuscriptRepository.save(manuscript);
+
+        reviewAssignmentRepository.findByManuscriptIdOrderByRoundNumberAscAssignedDateAsc(manuscriptId)
+                .forEach(a -> {
+                    a.setRevisionForwarded(true);
+                    reviewAssignmentRepository.save(a);
+                });
 
         // Notify Reviewer 1
         if (saved.getAssignedReviewer() != null) {
@@ -782,6 +856,20 @@ public class ManuscriptServiceImpl implements ManuscriptService {
         }
 
         Manuscript saved = manuscriptRepository.save(manuscript);
+
+        // Record normalized EditorialDecision
+        String decId = "dec_" + saved.getId() + "_" + System.currentTimeMillis();
+        EditorialDecision decisionRecord = new EditorialDecision(
+                decId,
+                saved,
+                editor,
+                1,
+                action,
+                request.getComments() != null ? request.getComments().trim() : null,
+                request.getRejectionReason() != null ? request.getRejectionReason().trim() : null
+        );
+        editorialDecisionRepository.save(decisionRecord);
+
         return manuscriptMapper.toDTO(saved, false);
     }
 

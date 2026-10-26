@@ -1,0 +1,26 @@
+# Maven build output
+target/
+*.class
+
+# Log files
+*.log
+
+# Uploaded storage files
+uploads/
+test-uploads/
+
+# Environment files
+.env
+.env.local
+
+# IDE & Editor files
+.idea/
+*.iml
+.vscode/
+.classpath
+.project
+.settings/
+
+# OS files
+.DS_Store
+Thumbs.db

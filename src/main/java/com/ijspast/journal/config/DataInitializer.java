@@ -2,11 +2,13 @@ package com.ijspast.journal.config;
 
 import com.ijspast.journal.entity.Review;
 import com.ijspast.journal.entity.User;
+import com.ijspast.journal.entity.UserProfile;
 import com.ijspast.journal.entity.UserRole;
 import com.ijspast.journal.repository.AccountSetupTokenRepository;
 import com.ijspast.journal.repository.ManuscriptRepository;
 import com.ijspast.journal.repository.PasswordResetTokenRepository;
 import com.ijspast.journal.repository.ReviewRepository;
+import com.ijspast.journal.repository.UserProfileRepository;
 import com.ijspast.journal.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,6 +26,7 @@ public class DataInitializer implements CommandLineRunner {
     private static final Logger log = LoggerFactory.getLogger(DataInitializer.class);
 
     private final UserRepository userRepository;
+    private final UserProfileRepository userProfileRepository;
     private final ManuscriptRepository manuscriptRepository;
     private final ReviewRepository reviewRepository;
     private final PasswordResetTokenRepository passwordResetTokenRepository;
@@ -43,12 +46,14 @@ public class DataInitializer implements CommandLineRunner {
     private String editorInstitution;
 
     public DataInitializer(UserRepository userRepository,
+                           UserProfileRepository userProfileRepository,
                            ManuscriptRepository manuscriptRepository,
                            ReviewRepository reviewRepository,
                            PasswordResetTokenRepository passwordResetTokenRepository,
                            AccountSetupTokenRepository accountSetupTokenRepository,
                            PasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
+        this.userProfileRepository = userProfileRepository;
         this.manuscriptRepository = manuscriptRepository;
         this.reviewRepository = reviewRepository;
         this.passwordResetTokenRepository = passwordResetTokenRepository;
@@ -97,7 +102,7 @@ public class DataInitializer implements CommandLineRunner {
     }
 
     private User seedEditor() {
-        return userRepository.findByEmailIgnoreCase(editorEmail.trim().toLowerCase())
+        User editor = userRepository.findByEmailIgnoreCase(editorEmail.trim().toLowerCase())
                 .orElseGet(() -> {
                     log.info("Seeding Initial Editor account: {}", editorEmail);
                     User user = new User(
@@ -113,5 +118,18 @@ public class DataInitializer implements CommandLineRunner {
                     user.setAccountSetupCompleted(true);
                     return userRepository.save(user);
                 });
+
+        userProfileRepository.findByUserId(editor.getId()).orElseGet(() -> {
+            UserProfile profile = new UserProfile();
+            profile.setId("profile_" + editor.getId());
+            profile.setUser(editor);
+            profile.setInstitution(editor.getInstitution() != null ? editor.getInstitution() : editorInstitution);
+            profile.setDepartment(editor.getDepartment() != null ? editor.getDepartment() : "Office of Editor-in-Chief");
+            profile.setCityCountry("Lucknow, India");
+            profile.setDomainExpertise("Applied Sciences & Journal Management");
+            return userProfileRepository.save(profile);
+        });
+
+        return editor;
     }
 }

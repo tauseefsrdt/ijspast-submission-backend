@@ -25,7 +25,11 @@ public class FileStorageServiceImpl implements FileStorageService {
     private final Path fileStorageLocation;
 
     public FileStorageServiceImpl(@Value("${app.file.upload-dir:./uploads}") String uploadDir) {
-        this.fileStorageLocation = Paths.get(uploadDir).toAbsolutePath().normalize();
+        Path path = Paths.get(uploadDir);
+        if (!path.isAbsolute() && !uploadDir.contains("backend") && Files.isDirectory(Paths.get("backend"))) {
+            path = Paths.get("backend").resolve(uploadDir.startsWith("./") ? uploadDir.substring(2) : uploadDir);
+        }
+        this.fileStorageLocation = path.toAbsolutePath().normalize();
         try {
             Files.createDirectories(this.fileStorageLocation);
         } catch (Exception ex) {

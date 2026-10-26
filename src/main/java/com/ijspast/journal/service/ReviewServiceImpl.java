@@ -15,6 +15,7 @@ import com.ijspast.journal.exception.UnauthorizedException;
 import com.ijspast.journal.mapper.ManuscriptMapper;
 import com.ijspast.journal.mapper.ReviewMapper;
 import com.ijspast.journal.repository.ManuscriptRepository;
+import com.ijspast.journal.repository.ReviewAssignmentRepository;
 import com.ijspast.journal.repository.ReviewRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,6 +33,7 @@ public class ReviewServiceImpl implements ReviewService {
     private static final DateTimeFormatter DATE_TIME_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
     private final ReviewRepository reviewRepository;
+    private final ReviewAssignmentRepository reviewAssignmentRepository;
     private final ManuscriptRepository manuscriptRepository;
     private final UserService userService;
     private final ReviewMapper reviewMapper;
@@ -41,12 +43,14 @@ public class ReviewServiceImpl implements ReviewService {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public ReviewServiceImpl(ReviewRepository reviewRepository,
+                             ReviewAssignmentRepository reviewAssignmentRepository,
                              ManuscriptRepository manuscriptRepository,
                              UserService userService,
                              ReviewMapper reviewMapper,
                              ManuscriptMapper manuscriptMapper,
                              EmailService emailService) {
         this.reviewRepository = reviewRepository;
+        this.reviewAssignmentRepository = reviewAssignmentRepository;
         this.manuscriptRepository = manuscriptRepository;
         this.userService = userService;
         this.reviewMapper = reviewMapper;
@@ -127,9 +131,9 @@ public class ReviewServiceImpl implements ReviewService {
         }
 
         // ── Stage 2 Access Control ──
-        // Stage 2 submissions are blocked until the Editor has explicitly enabled Stage 2,
-        // which itself requires all donor reviewer (Stage 1) feedback to have been submitted first.
-        if (stage == 2 && !Boolean.TRUE.equals(manuscript.getStage2EnabledByEditor())) {
+        // If Stage 1 review was submitted, Stage 2 submissions are gated until the Editor has explicitly enabled Stage 2.
+        boolean stage1Exists = reviewRepository.findByManuscriptAndReviewerAndStage(manuscript, reviewer, 1).isPresent();
+        if (stage == 2 && stage1Exists && !Boolean.TRUE.equals(manuscript.getStage2EnabledByEditor())) {
             throw new BadRequestException(
                     "Stage 2 review submission is not permitted yet. The Editor must first enable Stage 2 after all assigned reviewers have submitted their Stage 1 (donor reviewer) feedback."
             );
@@ -179,6 +183,17 @@ public class ReviewServiceImpl implements ReviewService {
         }
 
         review.setSubmittedAt(LocalDateTime.now());
+
+        final int finalRound = round;
+        final int finalStage = stage;
+        reviewAssignmentRepository.findByManuscriptAndReviewerAndRoundNumber(manuscript, reviewer, round)
+                .ifPresent(asgn -> {
+                    review.setAssignment(asgn);
+                    if (finalRound == 2 || finalStage >= 2) {
+                        asgn.setAssignmentStatus("COMPLETED");
+                        reviewAssignmentRepository.save(asgn);
+                    }
+                });
 
         Review savedReview = reviewRepository.save(review);
 

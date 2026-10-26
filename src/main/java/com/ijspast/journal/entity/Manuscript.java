@@ -131,6 +131,22 @@ public class Manuscript {
     @OrderBy("createdAt ASC")
     private List<StatusHistoryItem> history = new ArrayList<>();
 
+    @OneToMany(mappedBy = "manuscript", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @OrderBy("roundNumber ASC, assignedDate ASC")
+    private List<ReviewAssignment> assignments = new ArrayList<>();
+
+    @OneToMany(mappedBy = "manuscript", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @OrderBy("roundNumber ASC, submittedAt ASC")
+    private List<ManuscriptRevision> revisions = new ArrayList<>();
+
+    @OneToMany(mappedBy = "manuscript", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @OrderBy("decidedAt DESC")
+    private List<EditorialDecision> decisions = new ArrayList<>();
+
+    @OneToMany(mappedBy = "manuscript", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @OrderBy("displayOrder ASC")
+    private List<ManuscriptCoauthor> coauthorList = new ArrayList<>();
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
@@ -159,6 +175,26 @@ public class Manuscript {
     public void addHistoryItem(StatusHistoryItem item) {
         history.add(item);
         item.setManuscript(this);
+    }
+
+    public void addAssignment(ReviewAssignment assignment) {
+        assignments.add(assignment);
+        assignment.setManuscript(this);
+    }
+
+    public void addRevision(ManuscriptRevision revision) {
+        revisions.add(revision);
+        revision.setManuscript(this);
+    }
+
+    public void addDecision(EditorialDecision decision) {
+        decisions.add(decision);
+        decision.setManuscript(this);
+    }
+
+    public void addCoauthor(ManuscriptCoauthor coauthor) {
+        coauthorList.add(coauthor);
+        coauthor.setManuscript(this);
     }
 
     // Getters and Setters
@@ -480,5 +516,37 @@ public class Manuscript {
 
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public List<ReviewAssignment> getAssignments() {
+        return assignments;
+    }
+
+    public void setAssignments(List<ReviewAssignment> assignments) {
+        this.assignments = assignments;
+    }
+
+    public List<ManuscriptRevision> getRevisions() {
+        return revisions;
+    }
+
+    public void setRevisions(List<ManuscriptRevision> revisions) {
+        this.revisions = revisions;
+    }
+
+    public List<EditorialDecision> getDecisions() {
+        return decisions;
+    }
+
+    public void setDecisions(List<EditorialDecision> decisions) {
+        this.decisions = decisions;
+    }
+
+    public List<ManuscriptCoauthor> getCoauthorList() {
+        return coauthorList;
+    }
+
+    public void setCoauthorList(List<ManuscriptCoauthor> coauthorList) {
+        this.coauthorList = coauthorList;
     }
 }
