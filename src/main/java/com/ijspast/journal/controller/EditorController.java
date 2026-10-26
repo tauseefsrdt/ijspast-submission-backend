@@ -112,6 +112,57 @@ public class EditorController {
         return ResponseEntity.ok(ApiResponse.success("Editorial decision recorded and notifications sent", updated));
     }
 
+    @PostMapping("/manuscripts/{id}/request-revision")
+    public ResponseEntity<ApiResponse<ManuscriptResponseDTO>> requestRevisionDirect(
+            @PathVariable String id,
+            @RequestBody Map<String, String> body) {
+        EditorialDecisionRequest req = new EditorialDecisionRequest();
+        req.setDecision("REQUEST_REVISION");
+        req.setComments(body != null ? body.getOrDefault("comments", "") : "");
+        ManuscriptResponseDTO updated = manuscriptService.makeEditorialDecision(id, req);
+        return ResponseEntity.ok(ApiResponse.success("Consolidated feedback dispatched to author", updated));
+    }
+
+    @PostMapping("/manuscripts/{id}/accept")
+    public ResponseEntity<ApiResponse<ManuscriptResponseDTO>> acceptDirect(
+            @PathVariable String id,
+            @RequestBody(required = false) Map<String, String> body) {
+        EditorialDecisionRequest req = new EditorialDecisionRequest();
+        req.setDecision("ACCEPT");
+        if (body != null) {
+            req.setComments(body.get("comment"));
+        }
+        ManuscriptResponseDTO updated = manuscriptService.makeEditorialDecision(id, req);
+        return ResponseEntity.ok(ApiResponse.success("Manuscript accepted", updated));
+    }
+
+    @PostMapping("/manuscripts/{id}/reject")
+    public ResponseEntity<ApiResponse<ManuscriptResponseDTO>> rejectDirect(
+            @PathVariable String id,
+            @RequestBody Map<String, String> body) {
+        EditorialDecisionRequest req = new EditorialDecisionRequest();
+        req.setDecision("REJECT");
+        req.setRejectionReason(body != null ? body.getOrDefault("reason", "") : "");
+        ManuscriptResponseDTO updated = manuscriptService.makeEditorialDecision(id, req);
+        return ResponseEntity.ok(ApiResponse.success("Manuscript rejected", updated));
+    }
+
+    @PostMapping("/manuscripts/{id}/publish")
+    public ResponseEntity<ApiResponse<ManuscriptResponseDTO>> publishDirect(
+            @PathVariable String id,
+            @RequestBody Map<String, String> body) {
+        EditorialDecisionRequest req = new EditorialDecisionRequest();
+        req.setDecision("PUBLISH");
+        if (body != null) {
+            req.setDoi(body.get("doi"));
+            req.setVolume(body.get("volume"));
+            req.setIssue(body.get("issue"));
+            req.setPublishedDate(body.get("publishedDate"));
+        }
+        ManuscriptResponseDTO updated = manuscriptService.makeEditorialDecision(id, req);
+        return ResponseEntity.ok(ApiResponse.success("Manuscript published", updated));
+    }
+
     @GetMapping("/manuscripts/{id}/reviews")
     public ResponseEntity<ApiResponse<List<ReviewResponseDTO>>> getManuscriptReviews(@PathVariable String id) {
         List<ReviewResponseDTO> reviews = reviewService.getReviewsByManuscriptId(id);

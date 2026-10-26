@@ -103,30 +103,33 @@ public class ReviewServiceImpl implements ReviewService {
             throw new UnauthorizedException("You are not assigned to review this manuscript.");
         }
 
-        // Second-Round Review enforcement:
-        // Keep second-round feedback disabled for both reviewers until the Editor clicks "Forward Revisions to Reviewers"
+        // Second-Round Review & Stage 2 Review enforcement:
         boolean isRevisionState = "Revision Submitted".equalsIgnoreCase(manuscript.getStatus())
                 || (manuscript.getFiles() != null && manuscript.getFiles().stream().anyMatch(ManuscriptFile::isRevised))
                 || (manuscript.getAuthorRevisionResponse() != null && !manuscript.getAuthorRevisionResponse().isBlank());
-        boolean isSecondRoundRequest = (request.getRound() != null && request.getRound() == 2)
-                || request.getStage() == 3
-                || Boolean.TRUE.equals(manuscript.getRevisionForwardedToReviewer());
 
-        if (isRevisionState && !Boolean.TRUE.equals(manuscript.getRevisionForwardedToReviewer())) {
-            throw new BadRequestException("Second-round review feedback is disabled for reviewers until the Editor-in-Chief clicks 'Forward Revisions to Reviewers'.");
-        }
-        if ((request.getRound() != null && request.getRound() == 2 || request.getStage() == 3) && !Boolean.TRUE.equals(manuscript.getRevisionForwardedToReviewer())) {
-            throw new BadRequestException("Second-round review feedback is disabled for reviewers until the Editor-in-Chief clicks 'Forward Revisions to Reviewers'.");
-        }
+        boolean isForwardedOrReassigned = Boolean.TRUE.equals(manuscript.getRevisionForwardedToReviewer())
+                || Boolean.TRUE.equals(manuscript.getReviewerReassignedAfterRevision())
+                || Boolean.TRUE.equals(manuscript.getStage2EnabledByEditor())
+                || (manuscript.getHistory() != null && manuscript.getHistory().stream().anyMatch(h ->
+                        h.getComment() != null && (h.getComment().contains("forwarded to peer reviewer") || h.getComment().contains("two-stage peer review evaluation"))));
 
         int stage = request.getStage() > 0 ? request.getStage() : 1;
+
+        if (isRevisionState && !isForwardedOrReassigned) {
+            throw new BadRequestException("Review feedback is disabled for reviewers until the Editor-in-Chief either forwards revisions to reviewers or reassigns reviewers.");
+        }
+        if ((request.getRound() != null && request.getRound() == 2 || request.getStage() == 3) && !isForwardedOrReassigned) {
+            throw new BadRequestException("Second-round review feedback is disabled for reviewers until the Editor-in-Chief forwards revisions or reassigns reviewers.");
+        }
+
         int round = (request.getRound() != null && request.getRound() > 0)
                 ? request.getRound()
-                : (stage == 3 || Boolean.TRUE.equals(manuscript.getRevisionForwardedToReviewer()) ? 2 : 1);
+                : (stage == 3 || Boolean.TRUE.equals(manuscript.getRevisionForwardedToReviewer()) ? 2 : (stage == 2 && isRevisionState ? 2 : 1));
         if (Boolean.TRUE.equals(manuscript.getRevisionForwardedToReviewer()) && stage != 1 && stage != 2) {
             stage = 3;
             round = 2;
-        } else if (round == 2) {
+        } else if (round == 2 && stage != 2) {
             stage = 3;
         }
 
@@ -135,7 +138,7 @@ public class ReviewServiceImpl implements ReviewService {
         boolean stage1Exists = reviewRepository.findByManuscriptAndReviewerAndStage(manuscript, reviewer, 1).isPresent();
         if (stage == 2 && stage1Exists && !Boolean.TRUE.equals(manuscript.getStage2EnabledByEditor())) {
             throw new BadRequestException(
-                    "Stage 2 review submission is not permitted yet. The Editor must first enable Stage 2 after all assigned reviewers have submitted their Stage 1 (donor reviewer) feedback."
+                    "Stage 2 review submission is not permitted yet. The Editor must first enable Stage 2 after performing 'Forward Revisions to Reviewers' or 'Reassign Reviewer'."
             );
         }
 

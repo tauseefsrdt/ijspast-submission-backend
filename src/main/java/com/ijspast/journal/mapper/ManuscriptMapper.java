@@ -43,6 +43,7 @@ public class ManuscriptMapper {
 
         dto.setRevisionForwardedToReviewer(manuscript.getRevisionForwardedToReviewer());
         dto.setStage2EnabledByEditor(manuscript.getStage2EnabledByEditor());
+        dto.setReviewerReassignedAfterRevision(manuscript.getReviewerReassignedAfterRevision());
 
         // Author mapping with strict double-blind masking
         if (maskAuthor) {

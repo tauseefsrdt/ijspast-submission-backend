@@ -428,6 +428,8 @@ public class ManuscriptServiceImpl implements ManuscriptService {
         // Update Manuscript Status
         manuscript.setStatus("Revision Submitted");
         manuscript.setRevisionForwardedToReviewer(false);
+        manuscript.setStage2EnabledByEditor(false);
+        manuscript.setReviewerReassignedAfterRevision(false);
         manuscript.setAuthorRevisionResponse(request.getResponse().trim());
 
         String nowStr = LocalDateTime.now().format(DATE_TIME_FORMAT);
@@ -527,6 +529,12 @@ public class ManuscriptServiceImpl implements ManuscriptService {
 
         manuscript.setAssignedDate(dateStr);
         manuscript.setReviewDeadline(deadlineStr);
+        if ("Revision Submitted".equalsIgnoreCase(manuscript.getStatus())
+                || "Revision Requested".equalsIgnoreCase(manuscript.getStatus())
+                || (manuscript.getAuthorRevisionResponse() != null && !manuscript.getAuthorRevisionResponse().isBlank())
+                || (manuscript.getFiles() != null && manuscript.getFiles().stream().anyMatch(ManuscriptFile::isRevised))) {
+            manuscript.setReviewerReassignedAfterRevision(true);
+        }
 
         String nowStr = LocalDateTime.now().format(DATE_TIME_FORMAT);
         String historyComment = (reviewer2 != null)
@@ -631,6 +639,44 @@ public class ManuscriptServiceImpl implements ManuscriptService {
             throw new BadRequestException(
                     "Cannot enable Stage 2: Donor reviewer feedback (Stage 1) has not been submitted by " + pending +
                     ". All assigned reviewers must submit their Stage 1 feedback before Stage 2 can be enabled."
+            );
+        }
+
+        // ── Consolidated Feedback & Author Resubmission Enforcement ──
+        // Keep Stage 2 disabled until the Editor reviews & merges consolidated feedback,
+        // sends it to the Author, and the Author resubmits the revised paper.
+        boolean hasSentConsolidatedFeedback = (manuscript.getRevisionRequestComments() != null && !manuscript.getRevisionRequestComments().isBlank())
+                || "Revision Requested".equalsIgnoreCase(manuscript.getStatus())
+                || (manuscript.getHistory() != null && manuscript.getHistory().stream().anyMatch(h -> "Revision Requested".equalsIgnoreCase(h.getStatus())));
+
+        if (!hasSentConsolidatedFeedback) {
+            throw new BadRequestException(
+                    "Cannot enable Stage 2: Consolidated feedback must first be reviewed, merged, and sent to the Author."
+            );
+        }
+
+        boolean hasAuthorResubmitted = "Revision Submitted".equalsIgnoreCase(manuscript.getStatus())
+                || (manuscript.getAuthorRevisionResponse() != null && !manuscript.getAuthorRevisionResponse().isBlank())
+                || (manuscript.getFiles() != null && manuscript.getFiles().stream().anyMatch(ManuscriptFile::isRevised))
+                || (manuscript.getRevisions() != null && !manuscript.getRevisions().isEmpty())
+                || (manuscript.getHistory() != null && manuscript.getHistory().stream().anyMatch(h -> "Revision Submitted".equalsIgnoreCase(h.getStatus())));
+
+        if (!hasAuthorResubmitted) {
+            throw new BadRequestException(
+                    "Cannot enable Stage 2: Author has not yet resubmitted the revised paper. Stage 2 can only be enabled after the author resubmits."
+            );
+        }
+
+        // ── Forward Revisions or Reassign Reviewer Prerequisite ──
+        // Keep Stage 2 disabled until the editor performs either Forward Revisions to Reviewers or Reassign Reviewer.
+        boolean isForwardedOrReassigned = Boolean.TRUE.equals(manuscript.getRevisionForwardedToReviewer())
+                || Boolean.TRUE.equals(manuscript.getReviewerReassignedAfterRevision())
+                || (manuscript.getHistory() != null && manuscript.getHistory().stream().anyMatch(h -> 
+                        h.getComment() != null && h.getComment().contains("forwarded to peer reviewer")));
+
+        if (!isForwardedOrReassigned) {
+            throw new BadRequestException(
+                    "Cannot enable Stage 2: The Stage 2 review remains disabled until the Editor-in-Chief performs either 'Forward Revisions to Reviewers' or 'Reassign Reviewer'."
             );
         }
 
@@ -770,6 +816,32 @@ public class ManuscriptServiceImpl implements ManuscriptService {
                         throw new BadRequestException("Cannot send consolidated feedback to the Author: Both Reviewer 1 and Reviewer 2 must submit their evaluations before consolidated feedback can be sent. Waiting for " + pending + " to submit feedback.");
                     } else if (!rev1Submitted && !rev2Submitted) {
                         throw new BadRequestException("Cannot send review feedback to the Author: Waiting for assigned reviewer to submit evaluation.");
+                    }
+
+                    // Next Review Cycle Enforcement:
+                    // If consolidated feedback was already dispatched, keep disabled until new reviewer feedback becomes available for the next cycle
+                    boolean alreadySentConsolidated = (manuscript.getRevisionRequestComments() != null && !manuscript.getRevisionRequestComments().isBlank())
+                            || (manuscript.getHistory() != null && manuscript.getHistory().stream().anyMatch(h -> "Revision Requested".equalsIgnoreCase(h.getStatus())));
+
+                    if (alreadySentConsolidated) {
+                        boolean rev1NewSubmitted = !hasReviewer1 || manuscriptReviews.stream().anyMatch(r -> {
+                            boolean isR1 = (manuscript.getAssignedReviewer() != null && r.getReviewer() != null && r.getReviewer().getId().equals(manuscript.getAssignedReviewer().getId()))
+                                    || (manuscript.getAssignedReviewerName() != null && r.getReviewerName() != null && r.getReviewerName().equalsIgnoreCase(manuscript.getAssignedReviewerName()));
+                            return isR1 && (r.getStage() >= 2 || (r.getRound() != null && r.getRound() >= 2));
+                        });
+
+                        boolean rev2NewSubmitted = !hasReviewer2 || manuscriptReviews.stream().anyMatch(r -> {
+                            boolean isR2 = (manuscript.getAssignedReviewer2() != null && r.getReviewer() != null && r.getReviewer().getId().equals(manuscript.getAssignedReviewer2().getId()))
+                                    || (manuscript.getAssignedReviewer2Name() != null && r.getReviewerName() != null && r.getReviewerName().equalsIgnoreCase(manuscript.getAssignedReviewer2Name()));
+                            return isR2 && (r.getStage() >= 2 || (r.getRound() != null && r.getRound() >= 2));
+                        });
+
+                        if (!rev1NewSubmitted || !rev2NewSubmitted) {
+                            String pending = (!rev1NewSubmitted && !rev2NewSubmitted)
+                                    ? "both Reviewer 1 (" + manuscript.getAssignedReviewerName() + ") and Reviewer 2 (" + manuscript.getAssignedReviewer2Name() + ")"
+                                    : (!rev1NewSubmitted ? "Reviewer 1 (" + manuscript.getAssignedReviewerName() + ")" : "Reviewer 2 (" + manuscript.getAssignedReviewer2Name() + ")");
+                            throw new BadRequestException("Cannot dispatch consolidated feedback: Consolidated feedback has already been sent to the Author. Waiting for new reviewer evaluations for the next review cycle from " + pending + ".");
+                        }
                     }
                 }
 

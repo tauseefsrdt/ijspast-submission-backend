@@ -66,8 +66,8 @@ public class DataInitializer implements CommandLineRunner {
     public void run(String... args) {
         log.info("Checking database initialization status...");
 
-        // Remove any legacy static/demo manuscripts and accounts
-        cleanLegacyStaticData();
+        // Remove any legacy static/demo manuscripts and accounts (disabled to preserve active evaluation workflow)
+        // cleanLegacyStaticData();
 
         // Initialize Primary Editor Account ONLY
         seedEditor();
