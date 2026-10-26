@@ -134,6 +134,24 @@ public class ManuscriptMapper {
             }
         }
 
+        // Calculate and set actual author revision count
+        int revCount = 0;
+        if (manuscript.getFiles() != null) {
+            revCount = (int) manuscript.getFiles().stream().filter(ManuscriptFile::isRevised).count();
+        }
+        if (manuscript.getRevisions() != null && manuscript.getRevisions().size() > revCount) {
+            revCount = manuscript.getRevisions().size();
+        }
+        if (manuscript.getHistory() != null) {
+            int histCount = (int) manuscript.getHistory().stream()
+                    .filter(h -> "Revision Submitted".equalsIgnoreCase(h.getStatus()))
+                    .count();
+            if (histCount > revCount) {
+                revCount = histCount;
+            }
+        }
+        dto.setRevisionCount(revCount);
+
         // History items
         if (manuscript.getHistory() != null) {
             final String rawAuthorName = manuscript.getAuthorName();

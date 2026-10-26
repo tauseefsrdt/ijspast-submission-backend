@@ -39,6 +39,7 @@ public class ManuscriptResponseDTO {
     private String rejectionReason;
     private PublicationDetailsDTO publicationDetails;
     private List<StatusHistoryItemDTO> history = new ArrayList<>();
+    private Integer revisionCount = 0;
 
     public ManuscriptResponseDTO() {
     }
@@ -273,5 +274,13 @@ public class ManuscriptResponseDTO {
 
     public void setHistory(List<StatusHistoryItemDTO> history) {
         this.history = history;
+    }
+
+    public Integer getRevisionCount() {
+        return revisionCount != null ? revisionCount : 0;
+    }
+
+    public void setRevisionCount(Integer revisionCount) {
+        this.revisionCount = revisionCount;
     }
 }

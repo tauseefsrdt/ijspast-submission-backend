@@ -484,12 +484,35 @@ public class ManuscriptServiceImpl implements ManuscriptService {
         return manuscriptMapper.toDTO(manuscript, false);
     }
 
+    private int calculateRevisionCount(Manuscript manuscript) {
+        int count = 0;
+        if (manuscript.getFiles() != null) {
+            count = (int) manuscript.getFiles().stream().filter(ManuscriptFile::isRevised).count();
+        }
+        if (manuscript.getRevisions() != null && manuscript.getRevisions().size() > count) {
+            count = manuscript.getRevisions().size();
+        }
+        if (manuscript.getHistory() != null) {
+            int histCount = (int) manuscript.getHistory().stream()
+                    .filter(h -> "Revision Submitted".equalsIgnoreCase(h.getStatus()))
+                    .count();
+            if (histCount > count) {
+                count = histCount;
+            }
+        }
+        return count;
+    }
+
     @Override
     @Transactional
     public ManuscriptResponseDTO assignReviewer(String manuscriptId, AssignReviewerRequest request) {
         User editor = getAuthenticatedUser();
         Manuscript manuscript = manuscriptRepository.findById(manuscriptId)
                 .orElseThrow(() -> new ResourceNotFoundException("Manuscript not found: " + manuscriptId));
+
+        if (calculateRevisionCount(manuscript) >= 2) {
+            throw new BadRequestException("Reviewers cannot be reassigned: Author has submitted the revised manuscript twice. At this stage, the Editorial Board must make a final decision: Accept or Reject.");
+        }
 
         User reviewer1 = userRepository.findById(request.getReviewerId())
                 .orElseThrow(() -> new ResourceNotFoundException("Reviewer 1 not found: " + request.getReviewerId()));
@@ -612,6 +635,10 @@ public class ManuscriptServiceImpl implements ManuscriptService {
         Manuscript manuscript = manuscriptRepository.findById(manuscriptId)
                 .orElseThrow(() -> new ResourceNotFoundException("Manuscript not found: " + manuscriptId));
 
+        if (calculateRevisionCount(manuscript) >= 2) {
+            throw new BadRequestException("Stage 2 review cannot be enabled: Author has submitted the revised manuscript twice. At this stage, the Editorial Board must make a final decision: Accept or Reject.");
+        }
+
         if (manuscript.getAssignedReviewer() == null && manuscript.getAssignedReviewer2() == null) {
             throw new BadRequestException("No reviewer is assigned to this manuscript. Assign a reviewer before enabling Stage 2.");
         }
@@ -711,6 +738,10 @@ public class ManuscriptServiceImpl implements ManuscriptService {
         Manuscript manuscript = manuscriptRepository.findById(manuscriptId)
                 .orElseThrow(() -> new ResourceNotFoundException("Manuscript not found: " + manuscriptId));
 
+        if (calculateRevisionCount(manuscript) >= 2) {
+            throw new BadRequestException("Revisions cannot be forwarded to reviewers: Author has submitted the revised manuscript twice. At this stage, the Editorial Board must make a final decision: Accept or Reject.");
+        }
+
         if (!"Revision Submitted".equalsIgnoreCase(manuscript.getStatus()) && !"Revision Requested".equalsIgnoreCase(manuscript.getStatus())) {
             throw new BadRequestException("Manuscript is not currently in Revision Submitted status.");
         }
@@ -788,6 +819,10 @@ public class ManuscriptServiceImpl implements ManuscriptService {
 
         switch (action) {
             case "REQUEST_REVISION" -> {
+                if (calculateRevisionCount(manuscript) >= 2) {
+                    throw new BadRequestException("Cannot request further revisions: The author has already submitted the revised manuscript twice. At this stage, the Editorial Board can only Accept or Reject the manuscript.");
+                }
+
                 if (request.getComments() == null || request.getComments().isBlank()) {
                     throw new BadRequestException("Consolidated revision comments for the author are required.");
                 }
