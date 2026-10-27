@@ -35,6 +35,8 @@ public interface EmailService {
 
     void sendPasswordResetEmail(String toEmail, String resetToken);
 
+    void sendPasswordResetOtpEmail(String toEmail, String otpCode);
+
     void sendAccountActivationEmail(String toEmail, String activationToken);
 
     List<DispatchedEmailDTO> getOutboxEmails(String type, String search);

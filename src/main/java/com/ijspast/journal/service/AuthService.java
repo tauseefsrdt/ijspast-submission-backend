@@ -10,6 +10,10 @@ public interface AuthService {
 
     void forgotPassword(ForgotPasswordRequest request);
 
+    void resendOtp(ResendOtpRequest request);
+
+    com.ijspast.journal.dto.response.VerifyOtpResponseDTO verifyOtp(VerifyOtpRequest request);
+
     void resetPassword(ResetPasswordRequest request);
 
     void activateAccount(AccountActivationRequest request);

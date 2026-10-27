@@ -29,8 +29,22 @@ public class AuthController {
     public ResponseEntity<ApiResponse<Void>> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
         authService.forgotPassword(request);
         return ResponseEntity.ok(ApiResponse.success(
-                "If the email is registered in our portal, password reset instructions have been dispatched.", null
+                "If the email is registered in our portal, a 6-digit OTP code has been dispatched.", null
         ));
+    }
+
+    @PostMapping("/resend-otp")
+    public ResponseEntity<ApiResponse<Void>> resendOtp(@Valid @RequestBody ResendOtpRequest request) {
+        authService.resendOtp(request);
+        return ResponseEntity.ok(ApiResponse.success(
+                "A fresh 6-digit verification code has been dispatched to your email address.", null
+        ));
+    }
+
+    @PostMapping("/verify-otp")
+    public ResponseEntity<ApiResponse<com.ijspast.journal.dto.response.VerifyOtpResponseDTO>> verifyOtp(@Valid @RequestBody VerifyOtpRequest request) {
+        com.ijspast.journal.dto.response.VerifyOtpResponseDTO response = authService.verifyOtp(request);
+        return ResponseEntity.ok(ApiResponse.success("OTP verified successfully.", response));
     }
 
     @PostMapping("/reset-password")

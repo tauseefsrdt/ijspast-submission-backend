@@ -269,6 +269,24 @@ public class EmailServiceImpl implements EmailService {
 
     @Override
     @Transactional
+    public void sendPasswordResetOtpEmail(String toEmail, String otpCode) {
+        String subject = "[IJSPAST] Password Reset One-Time Password (OTP): " + otpCode;
+        String content = "Dear Colleague,\n\n"
+                + "A password reset request was initiated for your IJSPAST account.\n\n"
+                + "Your 6-digit One-Time Password (OTP) is:\n\n"
+                + "       " + otpCode + "\n\n"
+                + "This OTP is strictly confidential and expires in 10 minutes.\n"
+                + "Please return to the IJSPAST portal and enter this code to verify your identity and set a new password.\n\n"
+                + "If you did not make this request, please disregard this email. Your account remains completely secure.\n\n"
+                + "Security Office\n"
+                + "International Journal of Scientific Progress in Applied Science & Technology (IJSPAST)\n"
+                + "Shri Ramswaroop Memorial University";
+
+        recordAndDispatch(toEmail, toEmail, subject, "PASSWORD_RESET_OTP", null, content);
+    }
+
+    @Override
+    @Transactional
     public void sendAccountActivationEmail(String toEmail, String activationToken) {
         String subject = "[IJSPAST] Account Activation";
         String activateLink = frontendUrl + "/activate-account?token=" + activationToken;

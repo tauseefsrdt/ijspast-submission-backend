@@ -24,6 +24,12 @@ public class PasswordResetToken {
     @Column(nullable = false)
     private boolean used = false;
 
+    @Column(name = "otp_code", length = 12)
+    private String otpCode;
+
+    @Column(name = "otp_verified")
+    private boolean otpVerified = false;
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
@@ -36,6 +42,17 @@ public class PasswordResetToken {
         this.tokenHash = tokenHash;
         this.expiryDate = expiryDate;
         this.used = false;
+        this.otpVerified = false;
+    }
+
+    public PasswordResetToken(String id, User user, String tokenHash, String otpCode, LocalDateTime expiryDate) {
+        this.id = id;
+        this.user = user;
+        this.tokenHash = tokenHash;
+        this.otpCode = otpCode;
+        this.expiryDate = expiryDate;
+        this.used = false;
+        this.otpVerified = false;
     }
 
     @PrePersist
@@ -95,5 +112,21 @@ public class PasswordResetToken {
 
     public void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public String getOtpCode() {
+        return otpCode;
+    }
+
+    public void setOtpCode(String otpCode) {
+        this.otpCode = otpCode;
+    }
+
+    public boolean isOtpVerified() {
+        return otpVerified;
+    }
+
+    public void setOtpVerified(boolean otpVerified) {
+        this.otpVerified = otpVerified;
     }
 }
