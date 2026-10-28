@@ -15,6 +15,10 @@ public enum UserRole {
         return simpleName;
     }
 
+    public String getName() {
+        return name();
+    }
+
     public static UserRole fromSimpleName(String simpleName) {
         if (simpleName == null) {
             return ROLE_AUTHOR;

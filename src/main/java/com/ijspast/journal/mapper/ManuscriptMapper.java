@@ -4,8 +4,15 @@ import com.ijspast.journal.dto.response.*;
 import com.ijspast.journal.entity.Manuscript;
 import com.ijspast.journal.entity.ManuscriptFile;
 import com.ijspast.journal.entity.StatusHistoryItem;
+import com.ijspast.journal.entity.Review;
+import com.ijspast.journal.entity.User;
+import com.ijspast.journal.repository.ManuscriptCommunicationRepository;
+import com.ijspast.journal.repository.ReviewRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -13,6 +20,15 @@ import java.util.stream.Collectors;
 
 @Component
 public class ManuscriptMapper {
+
+    private final ReviewRepository reviewRepository;
+    private final ManuscriptCommunicationRepository communicationRepository;
+
+    public ManuscriptMapper(@Autowired(required = false) ReviewRepository reviewRepository,
+                            @Autowired(required = false) ManuscriptCommunicationRepository communicationRepository) {
+        this.reviewRepository = reviewRepository;
+        this.communicationRepository = communicationRepository;
+    }
 
     public ManuscriptResponseDTO toDTO(Manuscript manuscript, boolean maskAuthor) {
         return toDTO(manuscript, maskAuthor, false);
@@ -72,6 +88,20 @@ public class ManuscriptMapper {
             dto.setAuthor(authorDTO);
         }
 
+        dto.setEditorComments(manuscript.getEditorComments());
+
+        int activeRound = 1;
+        if ("Revision Submitted".equalsIgnoreCase(manuscript.getStatus())
+                || Boolean.TRUE.equals(manuscript.getRevisionForwardedToReviewer())
+                || (manuscript.getFiles() != null && manuscript.getFiles().stream().anyMatch(ManuscriptFile::isRevised))
+                || (manuscript.getAuthorRevisionResponse() != null && !manuscript.getAuthorRevisionResponse().isBlank())) {
+            activeRound = 2;
+        }
+
+        int readyCount = 0;
+        boolean hasRev1 = manuscript.getAssignedReviewer() != null;
+        boolean hasRev2 = manuscript.getAssignedReviewer2() != null;
+
         // Assigned reviewer details
         if (maskReviewer) {
             dto.setAssignedReviewerId(null);
@@ -80,17 +110,118 @@ public class ManuscriptMapper {
             dto.setAssignedReviewer2Name(null);
             dto.setReviewerFeedbackForEditor(null);
         } else {
-            if (manuscript.getAssignedReviewer() != null) {
-                dto.setAssignedReviewerId(manuscript.getAssignedReviewer().getId());
-            }
-            dto.setAssignedReviewerName(manuscript.getAssignedReviewerName());
+            if (hasRev1) {
+                User r1 = manuscript.getAssignedReviewer();
+                dto.setAssignedReviewerId(r1.getId());
+                dto.setAssignedReviewerName(manuscript.getAssignedReviewerName());
 
-            if (manuscript.getAssignedReviewer2() != null) {
-                dto.setAssignedReviewer2Id(manuscript.getAssignedReviewer2().getId());
+                LocalDate r1Assigned = manuscript.getAssignedReviewer1Date();
+                if (r1Assigned == null && manuscript.getAssignedDate() != null) {
+                    try { r1Assigned = LocalDate.parse(manuscript.getAssignedDate()); } catch (Exception ignored) {}
+                }
+                LocalDate r1Deadline = manuscript.getAssignedReviewer1Deadline();
+                if (r1Deadline == null && manuscript.getReviewDeadline() != null) {
+                    try { r1Deadline = LocalDate.parse(manuscript.getReviewDeadline()); } catch (Exception ignored) {}
+                }
+                if (r1Assigned != null && r1Deadline == null) {
+                    r1Deadline = r1Assigned.plusDays(15);
+                }
+
+                if (r1Assigned != null) dto.setAssignedReviewer1Date(r1Assigned.toString());
+                if (r1Deadline != null) dto.setAssignedReviewer1Deadline(r1Deadline.toString());
+
+                List<Review> r1Reviews = reviewRepository != null 
+                        ? reviewRepository.findByManuscriptAndReviewer(manuscript, r1)
+                        : new ArrayList<>();
+                int r1Count = r1Reviews.size();
+                dto.setReviewer1SubmissionCount(r1Count);
+                dto.setReviewer1RoleEnded(r1Count >= 2);
+
+                final int r1ActiveRound = activeRound;
+                boolean r1SubmittedActiveRound = r1Reviews.stream().anyMatch(r -> {
+                    if (r1ActiveRound == 2) {
+                        return (r.getRound() != null && r.getRound() >= 2) || r.getStage() >= 2 || (r.getStageName() != null && r.getStageName().toLowerCase().contains("round 2"));
+                    } else {
+                        return r.getRound() == null || r.getRound() == 1 || r.getStage() == 1 || r.getStage() == 2;
+                    }
+                });
+
+                if (r1SubmittedActiveRound) {
+                    dto.setReviewer1Status("Completed");
+                    dto.setReviewer1CanReassign(false);
+                    dto.setReviewer1DaysRemaining(0L);
+                    readyCount++;
+                } else {
+                    long daysRem = r1Deadline != null ? ChronoUnit.DAYS.between(LocalDate.now(), r1Deadline) : 15L;
+                    dto.setReviewer1DaysRemaining(daysRem);
+                    if (daysRem < 0 || (r1Deadline != null && LocalDate.now().isAfter(r1Deadline))) {
+                        dto.setReviewer1Status("Overdue");
+                        dto.setReviewer1CanReassign(true);
+                    } else {
+                        dto.setReviewer1Status("Pending");
+                        dto.setReviewer1CanReassign(false);
+                    }
+                }
             }
-            dto.setAssignedReviewer2Name(manuscript.getAssignedReviewer2Name());
+
+            if (hasRev2) {
+                User r2 = manuscript.getAssignedReviewer2();
+                dto.setAssignedReviewer2Id(r2.getId());
+                dto.setAssignedReviewer2Name(manuscript.getAssignedReviewer2Name());
+
+                LocalDate r2Assigned = manuscript.getAssignedReviewer2Date();
+                if (r2Assigned == null && manuscript.getAssignedDate() != null) {
+                    try { r2Assigned = LocalDate.parse(manuscript.getAssignedDate()); } catch (Exception ignored) {}
+                }
+                LocalDate r2Deadline = manuscript.getAssignedReviewer2Deadline();
+                if (r2Deadline == null && manuscript.getReviewDeadline() != null) {
+                    try { r2Deadline = LocalDate.parse(manuscript.getReviewDeadline()); } catch (Exception ignored) {}
+                }
+                if (r2Assigned != null && r2Deadline == null) {
+                    r2Deadline = r2Assigned.plusDays(15);
+                }
+
+                if (r2Assigned != null) dto.setAssignedReviewer2Date(r2Assigned.toString());
+                if (r2Deadline != null) dto.setAssignedReviewer2Deadline(r2Deadline.toString());
+
+                List<Review> r2Reviews = reviewRepository != null 
+                        ? reviewRepository.findByManuscriptAndReviewer(manuscript, r2)
+                        : new ArrayList<>();
+                int r2Count = r2Reviews.size();
+                dto.setReviewer2SubmissionCount(r2Count);
+                dto.setReviewer2RoleEnded(r2Count >= 2);
+
+                final int r2ActiveRound = activeRound;
+                boolean r2SubmittedActiveRound = r2Reviews.stream().anyMatch(r -> {
+                    if (r2ActiveRound == 2) {
+                        return (r.getRound() != null && r.getRound() >= 2) || r.getStage() >= 2 || (r.getStageName() != null && r.getStageName().toLowerCase().contains("round 2"));
+                    } else {
+                        return r.getRound() == null || r.getRound() == 1 || r.getStage() == 1 || r.getStage() == 2;
+                    }
+                });
+
+                if (r2SubmittedActiveRound) {
+                    dto.setReviewer2Status("Completed");
+                    dto.setReviewer2CanReassign(false);
+                    dto.setReviewer2DaysRemaining(0L);
+                    readyCount++;
+                } else {
+                    long daysRem = r2Deadline != null ? ChronoUnit.DAYS.between(LocalDate.now(), r2Deadline) : 15L;
+                    dto.setReviewer2DaysRemaining(daysRem);
+                    if (daysRem < 0 || (r2Deadline != null && LocalDate.now().isAfter(r2Deadline))) {
+                        dto.setReviewer2Status("Overdue");
+                        dto.setReviewer2CanReassign(true);
+                    } else {
+                        dto.setReviewer2Status("Pending");
+                        dto.setReviewer2CanReassign(false);
+                    }
+                }
+            }
             dto.setReviewerFeedbackForEditor(manuscript.getReviewerFeedbackForEditor());
         }
+
+        dto.setFeedbackReadyCount(readyCount);
+        dto.setFeedbackProgress(readyCount + "/2 Ready");
 
         dto.setAssignedDate(manuscript.getAssignedDate());
         dto.setReviewDeadline(manuscript.getReviewDeadline());
@@ -151,6 +282,35 @@ public class ManuscriptMapper {
             }
         }
         dto.setRevisionCount(revCount);
+
+        // Decision & Action availability
+        boolean hasAssignedReviewers = hasRev1 || hasRev2;
+        boolean inActiveEvaluation = hasAssignedReviewers && (
+                "Under Review".equalsIgnoreCase(manuscript.getStatus())
+                || "Reviewer Assigned".equalsIgnoreCase(manuscript.getStatus())
+                || ("Revision Submitted".equalsIgnoreCase(manuscript.getStatus()) && hasAssignedReviewers)
+                || (readyCount < 2 && !"Accepted".equalsIgnoreCase(manuscript.getStatus()) && !"Published".equalsIgnoreCase(manuscript.getStatus()) && !"Rejected".equalsIgnoreCase(manuscript.getStatus()) && revCount < 2)
+        );
+
+        // Requirement 1: Reject button hidden during active reviewer evaluation
+        dto.setCanReject(!inActiveEvaluation);
+
+        // Requirement 2: Accept button disabled until both reviewers submit feedback (2/2 Ready)
+        if (!hasAssignedReviewers) {
+            dto.setCanAccept(false);
+        } else if (hasRev1 && hasRev2) {
+            dto.setCanAccept(readyCount >= 2 || revCount >= 2);
+        } else {
+            dto.setCanAccept(readyCount >= 1 || revCount >= 1);
+        }
+
+        // Requirement 6: Post-review communication stage
+        boolean isPostReview = isPostReviewStage(manuscript);
+        dto.setCanCommunicate(isPostReview);
+        int exchanges = communicationRepository != null 
+                ? (int) communicationRepository.countByManuscript(manuscript) 
+                : (manuscript.getCommunications() != null ? manuscript.getCommunications().size() : 0);
+        dto.setCommunicationExchanges(exchanges);
 
         // History items
         if (manuscript.getHistory() != null) {
@@ -257,5 +417,23 @@ public class ManuscriptMapper {
                 .map(String::trim)
                 .filter(s -> !s.isEmpty())
                 .collect(Collectors.toList());
+    }
+
+    public boolean isPostReviewStage(Manuscript manuscript) {
+        if (manuscript == null) return false;
+        String status = manuscript.getStatus();
+        if ("Review Completed".equalsIgnoreCase(status)
+                || "Accepted".equalsIgnoreCase(status)
+                || "Published".equalsIgnoreCase(status)
+                || "Revision Requested".equalsIgnoreCase(status)
+                || "Rejected".equalsIgnoreCase(status)) {
+            return true;
+        }
+        if (manuscript.getHistory() != null) {
+            return manuscript.getHistory().stream().anyMatch(h -> 
+                "Review Completed".equalsIgnoreCase(h.getStatus()) || "Accepted".equalsIgnoreCase(h.getStatus())
+            );
+        }
+        return false;
     }
 }

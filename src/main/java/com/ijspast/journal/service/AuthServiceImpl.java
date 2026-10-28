@@ -108,10 +108,7 @@ public class AuthServiceImpl implements AuthService {
         if (userOpt.isPresent()) {
             User user = userOpt.get();
 
-            if (user.getRole() == UserRole.ROLE_EDITOR) {
-                log.warn("Password reset rejected for editor account: {}", email);
-                throw new BadRequestException("Editor accounts cannot be reset via the portal. Editor credentials are managed centrally by the system administrator.");
-            }
+
 
             // Invalidate any active previous reset tokens for this user
             java.util.List<PasswordResetToken> activeTokens = resetTokenRepository.findAllByUserAndUsedFalse(user);
@@ -150,10 +147,7 @@ public class AuthServiceImpl implements AuthService {
         if (userOpt.isPresent()) {
             User user = userOpt.get();
 
-            if (user.getRole() == UserRole.ROLE_EDITOR) {
-                log.warn("Resend OTP rejected for editor account: {}", email);
-                throw new BadRequestException("Editor accounts cannot be reset via the portal.");
-            }
+
 
             java.util.List<PasswordResetToken> activeTokens = resetTokenRepository.findAllByUserAndUsedFalse(user);
             for (PasswordResetToken t : activeTokens) {
@@ -187,9 +181,7 @@ public class AuthServiceImpl implements AuthService {
         User user = userRepository.findByEmailIgnoreCase(email)
                 .orElseThrow(() -> new BadRequestException("Invalid email or OTP code."));
 
-        if (user.getRole() == UserRole.ROLE_EDITOR) {
-            throw new BadRequestException("Editor accounts cannot be reset via the portal. Editor credentials are managed centrally by the system administrator.");
-        }
+
 
         PasswordResetToken token = resetTokenRepository.findTopByUserAndUsedFalseOrderByCreatedAtDesc(user)
                 .orElseThrow(() -> new BadRequestException("No active OTP request found. Please request a new OTP."));
@@ -260,9 +252,7 @@ public class AuthServiceImpl implements AuthService {
         }
 
         User user = token.getUser();
-        if (user.getRole() == UserRole.ROLE_EDITOR) {
-            throw new BadRequestException("Editor accounts cannot be reset through the application.");
-        }
+
 
         user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
         userRepository.save(user);
@@ -309,10 +299,7 @@ public class AuthServiceImpl implements AuthService {
         User user = userRepository.findByEmailIgnoreCase(email)
                 .orElseThrow(() -> new ResourceNotFoundException("Authenticated user not found in database."));
 
-        if (user.getRole() == UserRole.ROLE_EDITOR) {
-            log.warn("Password change attempt rejected for editor: {}", email);
-            throw new BadRequestException("Editor accounts cannot change password through the application. Editor credentials are managed centrally by the system administrator.");
-        }
+
 
         if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPasswordHash())) {
             throw new BadRequestException("Current password is incorrect.");

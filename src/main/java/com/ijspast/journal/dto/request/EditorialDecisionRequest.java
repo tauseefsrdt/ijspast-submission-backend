@@ -9,6 +9,8 @@ public class EditorialDecisionRequest {
 
     private String comments;
 
+    private String editorComments;
+
     private String rejectionReason;
 
     private String doi;
@@ -36,6 +38,14 @@ public class EditorialDecisionRequest {
 
     public void setComments(String comments) {
         this.comments = comments;
+    }
+
+    public String getEditorComments() {
+        return editorComments;
+    }
+
+    public void setEditorComments(String editorComments) {
+        this.editorComments = editorComments;
     }
 
     public String getRejectionReason() {

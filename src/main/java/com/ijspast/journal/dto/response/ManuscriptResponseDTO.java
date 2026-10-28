@@ -34,6 +34,30 @@ public class ManuscriptResponseDTO {
     private Boolean stage2EnabledByEditor = false;
     private Boolean reviewerReassignedAfterRevision = false;
 
+    private String assignedReviewer1Date;
+    private String assignedReviewer1Deadline;
+    private String reviewer1Status; // "Pending", "Overdue", "Completed"
+    private Long reviewer1DaysRemaining;
+    private Boolean reviewer1CanReassign = false;
+    private Integer reviewer1SubmissionCount = 0;
+    private Boolean reviewer1RoleEnded = false;
+
+    private String assignedReviewer2Date;
+    private String assignedReviewer2Deadline;
+    private String reviewer2Status;
+    private Long reviewer2DaysRemaining;
+    private Boolean reviewer2CanReassign = false;
+    private Integer reviewer2SubmissionCount = 0;
+    private Boolean reviewer2RoleEnded = false;
+
+    private String editorComments;
+    private String feedbackProgress; // "0/2 Ready", "1/2 Ready", "2/2 Ready"
+    private Integer feedbackReadyCount = 0;
+    private Boolean canAccept = false;
+    private Boolean canReject = true;
+    private Integer communicationExchanges = 0;
+    private Boolean canCommunicate = false;
+
     private String reviewerFeedbackForAuthor;
     private String reviewerFeedbackForEditor;
     private String rejectionReason;
@@ -282,5 +306,173 @@ public class ManuscriptResponseDTO {
 
     public void setRevisionCount(Integer revisionCount) {
         this.revisionCount = revisionCount;
+    }
+
+    public String getAssignedReviewer1Date() {
+        return assignedReviewer1Date;
+    }
+
+    public void setAssignedReviewer1Date(String assignedReviewer1Date) {
+        this.assignedReviewer1Date = assignedReviewer1Date;
+    }
+
+    public String getAssignedReviewer1Deadline() {
+        return assignedReviewer1Deadline;
+    }
+
+    public void setAssignedReviewer1Deadline(String assignedReviewer1Deadline) {
+        this.assignedReviewer1Deadline = assignedReviewer1Deadline;
+    }
+
+    public String getReviewer1Status() {
+        return reviewer1Status;
+    }
+
+    public void setReviewer1Status(String reviewer1Status) {
+        this.reviewer1Status = reviewer1Status;
+    }
+
+    public Long getReviewer1DaysRemaining() {
+        return reviewer1DaysRemaining;
+    }
+
+    public void setReviewer1DaysRemaining(Long reviewer1DaysRemaining) {
+        this.reviewer1DaysRemaining = reviewer1DaysRemaining;
+    }
+
+    public Boolean getReviewer1CanReassign() {
+        return reviewer1CanReassign;
+    }
+
+    public void setReviewer1CanReassign(Boolean reviewer1CanReassign) {
+        this.reviewer1CanReassign = reviewer1CanReassign;
+    }
+
+    public Integer getReviewer1SubmissionCount() {
+        return reviewer1SubmissionCount;
+    }
+
+    public void setReviewer1SubmissionCount(Integer reviewer1SubmissionCount) {
+        this.reviewer1SubmissionCount = reviewer1SubmissionCount;
+    }
+
+    public Boolean getReviewer1RoleEnded() {
+        return reviewer1RoleEnded;
+    }
+
+    public void setReviewer1RoleEnded(Boolean reviewer1RoleEnded) {
+        this.reviewer1RoleEnded = reviewer1RoleEnded;
+    }
+
+    public String getAssignedReviewer2Date() {
+        return assignedReviewer2Date;
+    }
+
+    public void setAssignedReviewer2Date(String assignedReviewer2Date) {
+        this.assignedReviewer2Date = assignedReviewer2Date;
+    }
+
+    public String getAssignedReviewer2Deadline() {
+        return assignedReviewer2Deadline;
+    }
+
+    public void setAssignedReviewer2Deadline(String assignedReviewer2Deadline) {
+        this.assignedReviewer2Deadline = assignedReviewer2Deadline;
+    }
+
+    public String getReviewer2Status() {
+        return reviewer2Status;
+    }
+
+    public void setReviewer2Status(String reviewer2Status) {
+        this.reviewer2Status = reviewer2Status;
+    }
+
+    public Long getReviewer2DaysRemaining() {
+        return reviewer2DaysRemaining;
+    }
+
+    public void setReviewer2DaysRemaining(Long reviewer2DaysRemaining) {
+        this.reviewer2DaysRemaining = reviewer2DaysRemaining;
+    }
+
+    public Boolean getReviewer2CanReassign() {
+        return reviewer2CanReassign;
+    }
+
+    public void setReviewer2CanReassign(Boolean reviewer2CanReassign) {
+        this.reviewer2CanReassign = reviewer2CanReassign;
+    }
+
+    public Integer getReviewer2SubmissionCount() {
+        return reviewer2SubmissionCount;
+    }
+
+    public void setReviewer2SubmissionCount(Integer reviewer2SubmissionCount) {
+        this.reviewer2SubmissionCount = reviewer2SubmissionCount;
+    }
+
+    public Boolean getReviewer2RoleEnded() {
+        return reviewer2RoleEnded;
+    }
+
+    public void setReviewer2RoleEnded(Boolean reviewer2RoleEnded) {
+        this.reviewer2RoleEnded = reviewer2RoleEnded;
+    }
+
+    public String getEditorComments() {
+        return editorComments;
+    }
+
+    public void setEditorComments(String editorComments) {
+        this.editorComments = editorComments;
+    }
+
+    public String getFeedbackProgress() {
+        return feedbackProgress;
+    }
+
+    public void setFeedbackProgress(String feedbackProgress) {
+        this.feedbackProgress = feedbackProgress;
+    }
+
+    public Integer getFeedbackReadyCount() {
+        return feedbackReadyCount;
+    }
+
+    public void setFeedbackReadyCount(Integer feedbackReadyCount) {
+        this.feedbackReadyCount = feedbackReadyCount;
+    }
+
+    public Boolean getCanAccept() {
+        return canAccept;
+    }
+
+    public void setCanAccept(Boolean canAccept) {
+        this.canAccept = canAccept;
+    }
+
+    public Boolean getCanReject() {
+        return canReject;
+    }
+
+    public void setCanReject(Boolean canReject) {
+        this.canReject = canReject;
+    }
+
+    public Integer getCommunicationExchanges() {
+        return communicationExchanges;
+    }
+
+    public void setCommunicationExchanges(Integer communicationExchanges) {
+        this.communicationExchanges = communicationExchanges;
+    }
+
+    public Boolean getCanCommunicate() {
+        return canCommunicate;
+    }
+
+    public void setCanCommunicate(Boolean canCommunicate) {
+        this.canCommunicate = canCommunicate;
     }
 }

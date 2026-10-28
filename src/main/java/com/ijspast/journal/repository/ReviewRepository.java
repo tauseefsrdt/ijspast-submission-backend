@@ -20,9 +20,11 @@ public interface ReviewRepository extends JpaRepository<Review, String> {
 
     List<Review> findByReviewerOrderBySubmittedAtDesc(User reviewer);
 
-    Optional<Review> findByManuscriptAndReviewer(Manuscript manuscript, User reviewer);
+    List<Review> findByManuscriptAndReviewer(Manuscript manuscript, User reviewer);
 
     List<Review> findByManuscriptAndReviewerOrderByStageAsc(Manuscript manuscript, User reviewer);
 
     Optional<Review> findByManuscriptAndReviewerAndStage(Manuscript manuscript, User reviewer, int stage);
+
+    long countByManuscriptAndReviewer(Manuscript manuscript, User reviewer);
 }

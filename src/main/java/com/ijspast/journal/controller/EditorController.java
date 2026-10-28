@@ -3,6 +3,8 @@ package com.ijspast.journal.controller;
 import com.ijspast.journal.dto.request.AssignReviewerRequest;
 import com.ijspast.journal.dto.request.CreateReviewerRequest;
 import com.ijspast.journal.dto.request.EditorialDecisionRequest;
+import com.ijspast.journal.dto.request.ReassignReviewerRequest;
+import com.ijspast.journal.dto.request.SendMessageRequest;
 import com.ijspast.journal.dto.request.UpdateReviewerRequest;
 import com.ijspast.journal.dto.response.*;
 import com.ijspast.journal.service.EmailService;
@@ -119,8 +121,33 @@ public class EditorController {
         EditorialDecisionRequest req = new EditorialDecisionRequest();
         req.setDecision("REQUEST_REVISION");
         req.setComments(body != null ? body.getOrDefault("comments", "") : "");
+        if (body != null && body.containsKey("editorComments")) {
+            req.setEditorComments(body.get("editorComments"));
+        }
         ManuscriptResponseDTO updated = manuscriptService.makeEditorialDecision(id, req);
         return ResponseEntity.ok(ApiResponse.success("Consolidated feedback dispatched to author", updated));
+    }
+
+    @PostMapping("/manuscripts/{id}/reassign-reviewer")
+    public ResponseEntity<ApiResponse<ManuscriptResponseDTO>> reassignReviewer(
+            @PathVariable String id,
+            @Valid @RequestBody ReassignReviewerRequest request) {
+        ManuscriptResponseDTO updated = manuscriptService.reassignReviewer(id, request);
+        return ResponseEntity.ok(ApiResponse.success("Reviewer reassigned successfully", updated));
+    }
+
+    @GetMapping("/manuscripts/{id}/communications")
+    public ResponseEntity<ApiResponse<CommunicationThreadDTO>> getCommunications(@PathVariable String id) {
+        CommunicationThreadDTO thread = manuscriptService.getCommunications(id);
+        return ResponseEntity.ok(ApiResponse.success(thread));
+    }
+
+    @PostMapping("/manuscripts/{id}/communications")
+    public ResponseEntity<ApiResponse<CommunicationThreadDTO>> sendMessage(
+            @PathVariable String id,
+            @Valid @RequestBody SendMessageRequest request) {
+        CommunicationThreadDTO thread = manuscriptService.sendMessage(id, request);
+        return ResponseEntity.ok(ApiResponse.success("Message sent successfully", thread));
     }
 
     @PostMapping("/manuscripts/{id}/accept")

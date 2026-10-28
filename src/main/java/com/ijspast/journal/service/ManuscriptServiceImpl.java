@@ -3,8 +3,12 @@ package com.ijspast.journal.service;
 import com.ijspast.journal.dto.request.AssignReviewerRequest;
 import com.ijspast.journal.dto.request.EditorialDecisionRequest;
 import com.ijspast.journal.dto.request.ManuscriptSubmissionRequest;
+import com.ijspast.journal.dto.request.ReassignReviewerRequest;
 import com.ijspast.journal.dto.request.RevisionSubmissionRequest;
+import com.ijspast.journal.dto.request.SendMessageRequest;
 import com.ijspast.journal.dto.response.AuthorTableDTO;
+import com.ijspast.journal.dto.response.CommunicationMessageDTO;
+import com.ijspast.journal.dto.response.CommunicationThreadDTO;
 import com.ijspast.journal.dto.response.DispatchedEmailDTO;
 import com.ijspast.journal.dto.response.ManuscriptResponseDTO;
 import com.ijspast.journal.dto.response.ReviewerTableDTO;
@@ -28,6 +32,7 @@ import java.security.SecureRandom;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -51,6 +56,7 @@ public class ManuscriptServiceImpl implements ManuscriptService {
     private final FileStorageService fileStorageService;
     private final EmailService emailService;
     private final PasswordEncoder passwordEncoder;
+    private final ManuscriptCommunicationRepository communicationRepository;
 
     public ManuscriptServiceImpl(ManuscriptRepository manuscriptRepository,
                                  UserRepository userRepository,
@@ -65,7 +71,8 @@ public class ManuscriptServiceImpl implements ManuscriptService {
                                  ManuscriptMapper manuscriptMapper,
                                  FileStorageService fileStorageService,
                                  EmailService emailService,
-                                 PasswordEncoder passwordEncoder) {
+                                 PasswordEncoder passwordEncoder,
+                                 ManuscriptCommunicationRepository communicationRepository) {
         this.manuscriptRepository = manuscriptRepository;
         this.userRepository = userRepository;
         this.authorRepository = authorRepository;
@@ -80,6 +87,7 @@ public class ManuscriptServiceImpl implements ManuscriptService {
         this.fileStorageService = fileStorageService;
         this.emailService = emailService;
         this.passwordEncoder = passwordEncoder;
+        this.communicationRepository = communicationRepository;
     }
 
     private String getAuthenticatedUserEmail() {
@@ -533,21 +541,27 @@ public class ManuscriptServiceImpl implements ManuscriptService {
             }
         }
 
-        int deadlineDays = request.getDeadlineDays() > 0 ? request.getDeadlineDays() : 14;
-        String deadlineStr = LocalDate.now().plusDays(deadlineDays).toString();
-        String dateStr = LocalDate.now().toString();
+        int deadlineDays = request.getDeadlineDays() > 0 ? request.getDeadlineDays() : 15;
+        LocalDate assignedDateObj = LocalDate.now();
+        LocalDate reviewDeadlineObj = assignedDateObj.plusDays(deadlineDays);
+        String deadlineStr = reviewDeadlineObj.toString();
+        String dateStr = assignedDateObj.toString();
 
         manuscript.setStatus("Under Review");
         manuscript.setAssignedReviewer(reviewer1);
         manuscript.setAssignedReviewerName(reviewer1.getName());
         Reviewer reviewer1Ref = getOrCreateReviewerEntity(reviewer1);
         manuscript.setAssignedReviewer1Ref(reviewer1Ref);
+        manuscript.setAssignedReviewer1Date(assignedDateObj);
+        manuscript.setAssignedReviewer1Deadline(reviewDeadlineObj);
 
         if (reviewer2 != null) {
             manuscript.setAssignedReviewer2(reviewer2);
             manuscript.setAssignedReviewer2Name(reviewer2.getName());
             Reviewer reviewer2Ref = getOrCreateReviewerEntity(reviewer2);
             manuscript.setAssignedReviewer2Ref(reviewer2Ref);
+            manuscript.setAssignedReviewer2Date(assignedDateObj);
+            manuscript.setAssignedReviewer2Deadline(reviewDeadlineObj);
         }
 
         manuscript.setAssignedDate(dateStr);
@@ -561,9 +575,9 @@ public class ManuscriptServiceImpl implements ManuscriptService {
 
         String nowStr = LocalDateTime.now().format(DATE_TIME_FORMAT);
         String historyComment = (reviewer2 != null)
-                ? String.format("Assigned to Reviewer 1 (%s) and Reviewer 2 (%s) for two-stage peer review evaluation. Due by %s.",
+                ? String.format("Assigned to Reviewer 1 (%s) and Reviewer 2 (%s) for peer review evaluation. 15-day deadline: %s.",
                         reviewer1.getName(), reviewer2.getName(), deadlineStr)
-                : String.format("Assigned to %s for peer review evaluation. Due by %s.",
+                : String.format("Assigned to %s for peer review evaluation. 15-day deadline: %s.",
                         reviewer1.getName(), deadlineStr);
 
         StatusHistoryItem historyItem = new StatusHistoryItem(
@@ -579,13 +593,11 @@ public class ManuscriptServiceImpl implements ManuscriptService {
         Manuscript saved = manuscriptRepository.save(manuscript);
 
         // Sync normalized ReviewAssignment records
-        LocalDate assignedDateObj = LocalDate.now();
-        LocalDate reviewDeadlineObj = assignedDateObj.plusDays(deadlineDays);
-
         String asgnId1 = "asgn_" + saved.getId() + "_" + reviewer1.getId() + "_r1";
         ReviewAssignment assignment1 = reviewAssignmentRepository
                 .findByManuscriptAndReviewerAndRoundNumber(saved, reviewer1, 1)
-                .orElse(new ReviewAssignment(asgnId1, saved, reviewer1, 1, assignedDateObj, reviewDeadlineObj, request.getNotes()));
+                .orElse(new ReviewAssignment(asgnId1, saved, reviewer1, 1, assignedDateObj, reviewDeadlineObj, request.getNotes(), 1));
+        assignment1.setSlotNumber(1);
         assignment1.setAssignedDate(assignedDateObj);
         assignment1.setReviewDeadline(reviewDeadlineObj);
         assignment1.setNotes(request.getNotes());
@@ -596,7 +608,8 @@ public class ManuscriptServiceImpl implements ManuscriptService {
             String asgnId2 = "asgn_" + saved.getId() + "_" + reviewer2.getId() + "_r1";
             ReviewAssignment assignment2 = reviewAssignmentRepository
                     .findByManuscriptAndReviewerAndRoundNumber(saved, reviewer2, 1)
-                    .orElse(new ReviewAssignment(asgnId2, saved, reviewer2, 1, assignedDateObj, reviewDeadlineObj, request.getNotes()));
+                    .orElse(new ReviewAssignment(asgnId2, saved, reviewer2, 1, assignedDateObj, reviewDeadlineObj, request.getNotes(), 2));
+            assignment2.setSlotNumber(2);
             assignment2.setAssignedDate(assignedDateObj);
             assignment2.setReviewDeadline(reviewDeadlineObj);
             assignment2.setNotes(request.getNotes());
@@ -882,6 +895,10 @@ public class ManuscriptServiceImpl implements ManuscriptService {
 
                 manuscript.setStatus("Revision Requested");
                 manuscript.setRevisionRequestComments(request.getComments().trim());
+                if (request.getEditorComments() != null && !request.getEditorComments().isBlank()) {
+                    manuscript.setEditorComments(request.getEditorComments().trim());
+                }
+
                 manuscript.addHistoryItem(new StatusHistoryItem(
                         "hist_" + System.currentTimeMillis(),
                         "Revision Requested",
@@ -899,6 +916,25 @@ public class ManuscriptServiceImpl implements ManuscriptService {
                 );
             }
             case "ACCEPT" -> {
+                boolean hasReviewer1 = manuscript.getAssignedReviewer() != null || (manuscript.getAssignedReviewerName() != null && !manuscript.getAssignedReviewerName().isBlank());
+                boolean hasReviewer2 = manuscript.getAssignedReviewer2() != null || (manuscript.getAssignedReviewer2Name() != null && !manuscript.getAssignedReviewer2Name().isBlank());
+
+                if (!hasReviewer1 && !hasReviewer2) {
+                    throw new BadRequestException("Cannot accept manuscript: Reviewers have not been assigned.");
+                }
+
+                int readyCount = computeReadyCount(manuscript);
+                int revCount = calculateRevisionCount(manuscript);
+                if (hasReviewer1 && hasReviewer2) {
+                    if (readyCount < 2 && revCount < 2) {
+                        throw new BadRequestException("Cannot accept manuscript: Both assigned reviewers must submit their required feedback for the current review round (" + readyCount + "/2 Ready).");
+                    }
+                } else if (hasReviewer1 || hasReviewer2) {
+                    if (readyCount < 1 && revCount == 0) {
+                        throw new BadRequestException("Cannot accept manuscript: The assigned reviewer must submit required feedback before acceptance.");
+                    }
+                }
+
                 manuscript.setStatus("Accepted");
                 manuscript.addHistoryItem(new StatusHistoryItem(
                         "hist_" + System.currentTimeMillis(),
@@ -915,6 +951,24 @@ public class ManuscriptServiceImpl implements ManuscriptService {
                 if (request.getRejectionReason() == null || request.getRejectionReason().isBlank()) {
                     throw new BadRequestException("Rejection justification reason is required.");
                 }
+
+                boolean hasAssignedReviewers = (manuscript.getAssignedReviewer() != null || (manuscript.getAssignedReviewerName() != null && !manuscript.getAssignedReviewerName().isBlank()))
+                        || (manuscript.getAssignedReviewer2() != null || (manuscript.getAssignedReviewer2Name() != null && !manuscript.getAssignedReviewer2Name().isBlank()));
+
+                int revCount = calculateRevisionCount(manuscript);
+                int readyCount = computeReadyCount(manuscript);
+
+                boolean inActiveEvaluation = hasAssignedReviewers && (
+                        "Under Review".equalsIgnoreCase(manuscript.getStatus())
+                        || "Reviewer Assigned".equalsIgnoreCase(manuscript.getStatus())
+                        || ("Revision Submitted".equalsIgnoreCase(manuscript.getStatus()) && hasAssignedReviewers)
+                        || (readyCount < 2 && revCount < 2)
+                );
+
+                if (inActiveEvaluation) {
+                    throw new BadRequestException("Manuscript cannot be rejected during the active reviewer evaluation process. Rejection is only permitted prior to reviewer assignment or after reviews have been completed.");
+                }
+
                 manuscript.setStatus("Rejected");
                 manuscript.setRejectionReason(request.getRejectionReason().trim());
                 manuscript.addHistoryItem(new StatusHistoryItem(
@@ -975,9 +1029,268 @@ public class ManuscriptServiceImpl implements ManuscriptService {
                 request.getComments() != null ? request.getComments().trim() : null,
                 request.getRejectionReason() != null ? request.getRejectionReason().trim() : null
         );
+        if (request.getEditorComments() != null && !request.getEditorComments().isBlank()) {
+            decisionRecord.setEditorComments(request.getEditorComments().trim());
+        }
         editorialDecisionRepository.save(decisionRecord);
 
         return manuscriptMapper.toDTO(saved, false);
+    }
+
+    private int computeReadyCount(Manuscript manuscript) {
+        int revCount = calculateRevisionCount(manuscript);
+        int activeRound = (revCount >= 1 || manuscript.getRevisionForwardedToReviewer()) ? 2 : 1;
+        int readyCount = 0;
+
+        User r1 = manuscript.getAssignedReviewer();
+        if (r1 != null) {
+            List<Review> r1Reviews = reviewRepository.findByManuscriptAndReviewer(manuscript, r1);
+            boolean r1SubmittedActiveRound = r1Reviews.stream().anyMatch(r -> {
+                if (activeRound == 2) {
+                    return (r.getRound() != null && r.getRound() >= 2) || r.getStage() >= 2 || (r.getStageName() != null && r.getStageName().toLowerCase().contains("round 2"));
+                } else {
+                    return r.getRound() == null || r.getRound() == 1 || r.getStage() == 1 || r.getStage() == 2;
+                }
+            });
+            if (r1SubmittedActiveRound) readyCount++;
+        }
+
+        User r2 = manuscript.getAssignedReviewer2();
+        if (r2 != null) {
+            List<Review> r2Reviews = reviewRepository.findByManuscriptAndReviewer(manuscript, r2);
+            boolean r2SubmittedActiveRound = r2Reviews.stream().anyMatch(r -> {
+                if (activeRound == 2) {
+                    return (r.getRound() != null && r.getRound() >= 2) || r.getStage() >= 2 || (r.getStageName() != null && r.getStageName().toLowerCase().contains("round 2"));
+                } else {
+                    return r.getRound() == null || r.getRound() == 1 || r.getStage() == 1 || r.getStage() == 2;
+                }
+            });
+            if (r2SubmittedActiveRound) readyCount++;
+        }
+
+        return readyCount;
+    }
+
+    @Override
+    @Transactional
+    public ManuscriptResponseDTO reassignReviewer(String manuscriptId, ReassignReviewerRequest request) {
+        User editor = getAuthenticatedUser();
+        Manuscript manuscript = manuscriptRepository.findById(manuscriptId)
+                .orElseThrow(() -> new ResourceNotFoundException("Manuscript not found: " + manuscriptId));
+
+        int slot = request.getSlot();
+        if (slot != 1 && slot != 2) {
+            throw new BadRequestException("Reviewer slot must be 1 or 2.");
+        }
+
+        User currentReviewer = (slot == 1) ? manuscript.getAssignedReviewer() : manuscript.getAssignedReviewer2();
+        LocalDate assignedDate = (slot == 1) ? manuscript.getAssignedReviewer1Date() : manuscript.getAssignedReviewer2Date();
+        LocalDate deadline = (slot == 1) ? manuscript.getAssignedReviewer1Deadline() : manuscript.getAssignedReviewer2Deadline();
+
+        if (assignedDate == null && manuscript.getAssignedDate() != null) {
+            try { assignedDate = LocalDate.parse(manuscript.getAssignedDate()); } catch (Exception ignored) {}
+        }
+        if (deadline == null && assignedDate != null) {
+            deadline = assignedDate.plusDays(15);
+        }
+
+        if (deadline != null && LocalDate.now().isBefore(deadline)) {
+            long remaining = ChronoUnit.DAYS.between(LocalDate.now(), deadline);
+            throw new BadRequestException("Cannot reassign Reviewer " + slot + ": Reassignment is only permitted after 15 calendar days without feedback. Remaining days: " + remaining);
+        }
+
+        // Check if current reviewer already submitted feedback for active round
+        int revCount = calculateRevisionCount(manuscript);
+        int activeRound = (revCount >= 1 || manuscript.getRevisionForwardedToReviewer()) ? 2 : 1;
+        if (currentReviewer != null) {
+            List<Review> existingReviews = reviewRepository.findByManuscriptAndReviewer(manuscript, currentReviewer);
+            boolean alreadySubmitted = existingReviews.stream().anyMatch(r -> {
+                if (activeRound == 2) {
+                    return (r.getRound() != null && r.getRound() >= 2) || r.getStage() >= 2 || (r.getStageName() != null && r.getStageName().toLowerCase().contains("round 2"));
+                } else {
+                    return r.getRound() == null || r.getRound() == 1 || r.getStage() == 1 || r.getStage() == 2;
+                }
+            });
+            if (alreadySubmitted) {
+                throw new BadRequestException("Cannot reassign Reviewer " + slot + ": The reviewer has already submitted required feedback for the current round.");
+            }
+        }
+
+        // Validate replacement reviewer
+        User replacement = userRepository.findById(request.getReplacementReviewerId())
+                .orElseThrow(() -> new ResourceNotFoundException("Replacement reviewer not found: " + request.getReplacementReviewerId()));
+
+        if (!"ROLE_REVIEWER".equalsIgnoreCase(replacement.getRole().getName())) {
+            throw new BadRequestException("User " + replacement.getName() + " is not an eligible reviewer.");
+        }
+
+        // Must not be the author
+        if ((manuscript.getAuthorUser() != null && manuscript.getAuthorUser().getId().equals(replacement.getId()))
+                || manuscript.getAuthorEmail().equalsIgnoreCase(replacement.getEmail())) {
+            throw new BadRequestException("Cannot assign the author as a reviewer.");
+        }
+
+        // Must not already be assigned in the other slot
+        User otherReviewer = (slot == 1) ? manuscript.getAssignedReviewer2() : manuscript.getAssignedReviewer();
+        if (otherReviewer != null && otherReviewer.getId().equals(replacement.getId())) {
+            throw new BadRequestException("Reviewer " + replacement.getName() + " is already assigned to the other reviewer slot on this manuscript.");
+        }
+
+        // Must not have already completed 2 reviews on this manuscript
+        long replacementPrevReviews = reviewRepository.countByManuscriptAndReviewer(manuscript, replacement);
+        if (replacementPrevReviews >= 2) {
+            throw new BadRequestException("Reviewer " + replacement.getName() + " has already completed the permitted 2 feedback submissions for this manuscript.");
+        }
+
+        // Supersede old assignment
+        if (currentReviewer != null) {
+            List<ReviewAssignment> assignments = reviewAssignmentRepository.findByManuscriptAndReviewer(manuscript, currentReviewer);
+            for (ReviewAssignment asgn : assignments) {
+                if (!"SUPERSEDED".equalsIgnoreCase(asgn.getStatus()) && !"COMPLETED".equalsIgnoreCase(asgn.getStatus())) {
+                    asgn.setStatus("SUPERSEDED");
+                    asgn.setReassignedDate(LocalDateTime.now());
+                    asgn.setReassignmentReason(request.getReason() != null ? request.getReason().trim() : "Overdue 15 days without feedback");
+                    asgn.setSupersededByReviewer(replacement);
+                    reviewAssignmentRepository.save(asgn);
+                }
+            }
+        }
+
+        // Create new assignment with fresh 15-day deadline
+        LocalDate newAssignedDate = LocalDate.now();
+        LocalDate newDeadline = newAssignedDate.plusDays(15);
+        ReviewAssignment newAsgn = new ReviewAssignment();
+        newAsgn.setId("asgn_" + UUID.randomUUID().toString().replace("-", "").substring(0, 12));
+        newAsgn.setManuscript(manuscript);
+        newAsgn.setReviewer(replacement);
+        newAsgn.setRoundNumber(activeRound);
+        newAsgn.setAssignedDate(newAssignedDate);
+        newAsgn.setReviewDeadline(newDeadline);
+        newAsgn.setSlotNumber(slot);
+        newAsgn.setAssignmentStatus("ASSIGNED");
+        newAsgn.setNotes(request.getReason() != null ? request.getReason().trim() : "Manuscript peer review assignment (Reassigned)");
+        reviewAssignmentRepository.save(newAsgn);
+
+        // Update manuscript slot
+        if (slot == 1) {
+            manuscript.setAssignedReviewer(replacement);
+            manuscript.setAssignedReviewerName(replacement.getName());
+            manuscript.setAssignedReviewer1Date(newAssignedDate);
+            manuscript.setAssignedReviewer1Deadline(newDeadline);
+        } else {
+            manuscript.setAssignedReviewer2(replacement);
+            manuscript.setAssignedReviewer2Name(replacement.getName());
+            manuscript.setAssignedReviewer2Date(newAssignedDate);
+            manuscript.setAssignedReviewer2Deadline(newDeadline);
+        }
+
+        String nowStr = LocalDateTime.now().format(DATE_TIME_FORMAT);
+        String oldName = currentReviewer != null ? currentReviewer.getName() : "Reviewer " + slot;
+        manuscript.addHistoryItem(new StatusHistoryItem(
+                "hist_" + System.currentTimeMillis(),
+                "Reviewer Reassigned",
+                nowStr,
+                editor.getName(),
+                "Editor",
+                "Slot " + slot + " reviewer (" + oldName + ") reassigned to " + replacement.getName() + " after 15 days of inactivity."
+                        + (request.getReason() != null && !request.getReason().isBlank() ? " Reason: " + request.getReason().trim() : "")
+        ));
+
+        Manuscript saved = manuscriptRepository.save(manuscript);
+
+        // Send email to newly assigned reviewer
+        try {
+            emailService.sendReviewerAssignmentEmail(
+                    replacement.getEmail(),
+                    replacement.getName(),
+                    manuscript.getId(),
+                    manuscript.getTitle(),
+                    15,
+                    request.getReason() != null ? request.getReason().trim() : "Manuscript peer review assignment (Reassigned)"
+            );
+        } catch (Exception e) {
+            log.error("Failed to send reassignment email to reviewer {}: {}", replacement.getEmail(), e.getMessage());
+        }
+
+        return manuscriptMapper.toDTO(saved, false);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public CommunicationThreadDTO getCommunications(String manuscriptId) {
+        User user = getAuthenticatedUser();
+        Manuscript manuscript = manuscriptRepository.findById(manuscriptId)
+                .orElseThrow(() -> new ResourceNotFoundException("Manuscript not found: " + manuscriptId));
+
+        validateCommunicationAccess(manuscript, user);
+
+        List<ManuscriptCommunication> comms = communicationRepository.findByManuscriptOrderBySentAtAsc(manuscript);
+        List<CommunicationMessageDTO> messageDTOs = comms.stream().map(c -> new CommunicationMessageDTO(
+                c.getId(),
+                c.getSender() != null ? c.getSender().getId() : null,
+                c.getSenderName(),
+                c.getSenderRole(),
+                c.getMessage(),
+                c.getSentAt() != null ? c.getSentAt().toString() : ""
+        )).collect(Collectors.toList());
+
+        boolean isPost = manuscriptMapper.isPostReviewStage(manuscript);
+        int total = messageDTOs.size();
+        boolean limitReached = total >= 5;
+        boolean canSend = isPost && !limitReached;
+
+        return new CommunicationThreadDTO(manuscript.getId(), total, 5, canSend, isPost, messageDTOs);
+    }
+
+    @Override
+    @Transactional
+    public CommunicationThreadDTO sendMessage(String manuscriptId, SendMessageRequest request) {
+        User user = getAuthenticatedUser();
+        Manuscript manuscript = manuscriptRepository.findById(manuscriptId)
+                .orElseThrow(() -> new ResourceNotFoundException("Manuscript not found: " + manuscriptId));
+
+        validateCommunicationAccess(manuscript, user);
+
+        if (!manuscriptMapper.isPostReviewStage(manuscript)) {
+            throw new BadRequestException("Editor–Author communication is only enabled after the reviewer evaluation process has ended.");
+        }
+
+        long count = communicationRepository.countByManuscript(manuscript);
+        if (count >= 5) {
+            throw new BadRequestException("The maximum of five communication exchanges has been reached.");
+        }
+
+        String role = determineSenderRole(user, manuscript);
+        ManuscriptCommunication comm = new ManuscriptCommunication(
+                "comm_" + UUID.randomUUID().toString().replace("-", "").substring(0, 12),
+                manuscript,
+                user,
+                user.getName(),
+                role,
+                request.getMessage().trim()
+        );
+        communicationRepository.save(comm);
+
+        return getCommunications(manuscriptId);
+    }
+
+    private void validateCommunicationAccess(Manuscript manuscript, User user) {
+        String roleName = user.getRole().getName();
+        boolean isEditor = "ROLE_EDITOR".equalsIgnoreCase(roleName) || "ROLE_ADMIN".equalsIgnoreCase(roleName);
+        boolean isAuthor = (manuscript.getAuthorUser() != null && manuscript.getAuthorUser().getId().equals(user.getId()))
+                || (manuscript.getAuthorEmail() != null && manuscript.getAuthorEmail().equalsIgnoreCase(user.getEmail()));
+
+        if (!isEditor && !isAuthor) {
+            throw new BadRequestException("Access denied: Only the authorized Editor and Manuscript Author can participate in communications.");
+        }
+    }
+
+    private String determineSenderRole(User user, Manuscript manuscript) {
+        String roleName = user.getRole().getName();
+        if ("ROLE_EDITOR".equalsIgnoreCase(roleName) || "ROLE_ADMIN".equalsIgnoreCase(roleName)) {
+            return "Editor";
+        }
+        return "Author";
     }
 
     @Override

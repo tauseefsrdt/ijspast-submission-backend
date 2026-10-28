@@ -42,6 +42,19 @@ public class ReviewAssignment {
     @Column(name = "revision_forwarded", nullable = false)
     private boolean revisionForwarded = false;
 
+    @Column(name = "slot_number")
+    private Integer slotNumber = 1;
+
+    @Column(name = "reassigned_date")
+    private LocalDateTime reassignedDate;
+
+    @Column(name = "reassignment_reason", columnDefinition = "TEXT")
+    private String reassignmentReason;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "superseded_by_reviewer_id")
+    private User supersededByReviewer;
+
     @Column(columnDefinition = "TEXT")
     private String notes;
 
@@ -66,6 +79,19 @@ public class ReviewAssignment {
         this.reviewDeadline = reviewDeadline;
         this.notes = notes;
         this.assignmentStatus = "ASSIGNED";
+        this.slotNumber = 1;
+    }
+
+    public ReviewAssignment(String id, Manuscript manuscript, User reviewer, int roundNumber, LocalDate assignedDate, LocalDate reviewDeadline, String notes, int slotNumber) {
+        this.id = id;
+        this.manuscript = manuscript;
+        this.reviewer = reviewer;
+        this.roundNumber = roundNumber;
+        this.assignedDate = assignedDate;
+        this.reviewDeadline = reviewDeadline;
+        this.notes = notes;
+        this.assignmentStatus = "ASSIGNED";
+        this.slotNumber = slotNumber;
     }
 
     @PrePersist
@@ -122,6 +148,14 @@ public class ReviewAssignment {
         this.assignmentStatus = assignmentStatus;
     }
 
+    public String getStatus() {
+        return assignmentStatus;
+    }
+
+    public void setStatus(String status) {
+        this.assignmentStatus = status;
+    }
+
     public LocalDate getAssignedDate() {
         return assignedDate;
     }
@@ -176,6 +210,38 @@ public class ReviewAssignment {
 
     public void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public Integer getSlotNumber() {
+        return slotNumber;
+    }
+
+    public void setSlotNumber(Integer slotNumber) {
+        this.slotNumber = slotNumber;
+    }
+
+    public LocalDateTime getReassignedDate() {
+        return reassignedDate;
+    }
+
+    public void setReassignedDate(LocalDateTime reassignedDate) {
+        this.reassignedDate = reassignedDate;
+    }
+
+    public String getReassignmentReason() {
+        return reassignmentReason;
+    }
+
+    public void setReassignmentReason(String reassignmentReason) {
+        this.reassignmentReason = reassignmentReason;
+    }
+
+    public User getSupersededByReviewer() {
+        return supersededByReviewer;
+    }
+
+    public void setSupersededByReviewer(User supersededByReviewer) {
+        this.supersededByReviewer = supersededByReviewer;
     }
 
     public LocalDateTime getUpdatedAt() {

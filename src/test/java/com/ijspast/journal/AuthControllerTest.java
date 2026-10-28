@@ -128,28 +128,33 @@ public class AuthControllerTest {
     }
 
     @Test
-    @DisplayName("Editor password reset request is strictly rejected with 400 Bad Request")
-    void testEditorForgotPasswordRejected() throws Exception {
+    @DisplayName("Editor password reset request succeeds with 200 OK")
+    void testEditorForgotPasswordSuccess() throws Exception {
         ForgotPasswordRequest request = new ForgotPasswordRequest("editor@ijspast.demo");
 
         mockMvc.perform(post("/api/v1/auth/forgot-password")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.message", containsString("Editor accounts cannot be reset via the portal")));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
     }
 
     @Test
-    @DisplayName("Editor resend OTP request is strictly rejected with 400 Bad Request")
-    void testEditorResendOtpRejected() throws Exception {
+    @DisplayName("Editor resend OTP request succeeds with 200 OK")
+    void testEditorResendOtpSuccess() throws Exception {
+        ForgotPasswordRequest forgotReq = new ForgotPasswordRequest("editor@ijspast.demo");
+        mockMvc.perform(post("/api/v1/auth/forgot-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(forgotReq)))
+                .andExpect(status().isOk());
+
         ResendOtpRequest request = new ResendOtpRequest("editor@ijspast.demo");
 
         mockMvc.perform(post("/api/v1/auth/resend-otp")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.success").value(false));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
     }
 
     @Test
@@ -195,8 +200,8 @@ public class AuthControllerTest {
     }
 
     @Test
-    @DisplayName("Editor is strictly forbidden from changing password through application")
-    void testEditorChangePasswordRejected() throws Exception {
+    @DisplayName("Editor can change password authenticated successfully")
+    void testEditorChangePasswordSuccess() throws Exception {
         User user = userRepository.findByEmailIgnoreCase("editor@ijspast.demo").orElseThrow();
         String jwt = jwtTokenProvider.generateToken(user.getEmail(), user.getRole().name(), user.getId());
 
@@ -206,9 +211,13 @@ public class AuthControllerTest {
                         .header("Authorization", "Bearer " + jwt)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.message", containsString("Editor accounts cannot change password")));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+
+        // Restore password
+        user = userRepository.findByEmailIgnoreCase("editor@ijspast.demo").orElseThrow();
+        user.setPasswordHash(new org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder().encode("Editor@123"));
+        userRepository.save(user);
     }
 
     @Test

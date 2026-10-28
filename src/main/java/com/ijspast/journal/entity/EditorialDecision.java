@@ -28,6 +28,9 @@ public class EditorialDecision {
     @Column(name = "consolidated_comments", columnDefinition = "TEXT")
     private String consolidatedComments;
 
+    @Column(name = "editor_comments", columnDefinition = "TEXT")
+    private String editorComments;
+
     @Column(name = "rejection_reason", columnDefinition = "TEXT")
     private String rejectionReason;
 
@@ -44,6 +47,17 @@ public class EditorialDecision {
         this.roundNumber = roundNumber;
         this.decisionType = decisionType;
         this.consolidatedComments = consolidatedComments;
+        this.rejectionReason = rejectionReason;
+    }
+
+    public EditorialDecision(String id, Manuscript manuscript, User editor, int roundNumber, String decisionType, String consolidatedComments, String editorComments, String rejectionReason) {
+        this.id = id;
+        this.manuscript = manuscript;
+        this.editor = editor;
+        this.roundNumber = roundNumber;
+        this.decisionType = decisionType;
+        this.consolidatedComments = consolidatedComments;
+        this.editorComments = editorComments;
         this.rejectionReason = rejectionReason;
     }
 
@@ -100,6 +114,14 @@ public class EditorialDecision {
 
     public void setConsolidatedComments(String consolidatedComments) {
         this.consolidatedComments = consolidatedComments;
+    }
+
+    public String getEditorComments() {
+        return editorComments;
+    }
+
+    public void setEditorComments(String editorComments) {
+        this.editorComments = editorComments;
     }
 
     public String getRejectionReason() {

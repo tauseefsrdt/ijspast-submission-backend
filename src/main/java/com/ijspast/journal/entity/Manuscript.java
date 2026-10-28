@@ -1,6 +1,7 @@
 package com.ijspast.journal.entity;
 
 import jakarta.persistence.*;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -91,6 +92,21 @@ public class Manuscript {
     @Column(name = "review_deadline", length = 32)
     private String reviewDeadline;
 
+    @Column(name = "assigned_reviewer1_date")
+    private LocalDate assignedReviewer1Date;
+
+    @Column(name = "assigned_reviewer1_deadline")
+    private LocalDate assignedReviewer1Deadline;
+
+    @Column(name = "assigned_reviewer2_date")
+    private LocalDate assignedReviewer2Date;
+
+    @Column(name = "assigned_reviewer2_deadline")
+    private LocalDate assignedReviewer2Deadline;
+
+    @Column(name = "editor_comments", columnDefinition = "TEXT")
+    private String editorComments;
+
     @Column(name = "revision_request_comments", columnDefinition = "TEXT")
     private String revisionRequestComments;
 
@@ -149,6 +165,10 @@ public class Manuscript {
     @OneToMany(mappedBy = "manuscript", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @OrderBy("displayOrder ASC")
     private List<ManuscriptCoauthor> coauthorList = new ArrayList<>();
+
+    @OneToMany(mappedBy = "manuscript", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @OrderBy("sentAt ASC")
+    private List<ManuscriptCommunication> communications = new ArrayList<>();
 
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
@@ -559,5 +579,58 @@ public class Manuscript {
 
     public void setCoauthorList(List<ManuscriptCoauthor> coauthorList) {
         this.coauthorList = coauthorList;
+    }
+
+    public List<ManuscriptCommunication> getCommunications() {
+        return communications;
+    }
+
+    public void setCommunications(List<ManuscriptCommunication> communications) {
+        this.communications = communications;
+    }
+
+    public void addCommunication(ManuscriptCommunication communication) {
+        communications.add(communication);
+        communication.setManuscript(this);
+    }
+
+    public LocalDate getAssignedReviewer1Date() {
+        return assignedReviewer1Date;
+    }
+
+    public void setAssignedReviewer1Date(LocalDate assignedReviewer1Date) {
+        this.assignedReviewer1Date = assignedReviewer1Date;
+    }
+
+    public LocalDate getAssignedReviewer1Deadline() {
+        return assignedReviewer1Deadline;
+    }
+
+    public void setAssignedReviewer1Deadline(LocalDate assignedReviewer1Deadline) {
+        this.assignedReviewer1Deadline = assignedReviewer1Deadline;
+    }
+
+    public LocalDate getAssignedReviewer2Date() {
+        return assignedReviewer2Date;
+    }
+
+    public void setAssignedReviewer2Date(LocalDate assignedReviewer2Date) {
+        this.assignedReviewer2Date = assignedReviewer2Date;
+    }
+
+    public LocalDate getAssignedReviewer2Deadline() {
+        return assignedReviewer2Deadline;
+    }
+
+    public void setAssignedReviewer2Deadline(LocalDate assignedReviewer2Deadline) {
+        this.assignedReviewer2Deadline = assignedReviewer2Deadline;
+    }
+
+    public String getEditorComments() {
+        return editorComments;
+    }
+
+    public void setEditorComments(String editorComments) {
+        this.editorComments = editorComments;
     }
 }

@@ -37,6 +37,12 @@ public interface ManuscriptService {
 
     ManuscriptFile getAuthorizedFile(String fileId);
 
+    ManuscriptResponseDTO reassignReviewer(String manuscriptId, com.ijspast.journal.dto.request.ReassignReviewerRequest request);
+
+    com.ijspast.journal.dto.response.CommunicationThreadDTO getCommunications(String manuscriptId);
+
+    com.ijspast.journal.dto.response.CommunicationThreadDTO sendMessage(String manuscriptId, com.ijspast.journal.dto.request.SendMessageRequest request);
+
     List<com.ijspast.journal.dto.response.AuthorTableDTO> getAuthorsTable();
 
     List<com.ijspast.journal.dto.response.ReviewerTableDTO> getReviewersTable();

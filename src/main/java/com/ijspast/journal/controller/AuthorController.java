@@ -2,7 +2,9 @@ package com.ijspast.journal.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ijspast.journal.dto.request.RevisionSubmissionRequest;
+import com.ijspast.journal.dto.request.SendMessageRequest;
 import com.ijspast.journal.dto.response.ApiResponse;
+import com.ijspast.journal.dto.response.CommunicationThreadDTO;
 import com.ijspast.journal.dto.response.ManuscriptResponseDTO;
 import com.ijspast.journal.service.ManuscriptService;
 import jakarta.validation.Valid;
@@ -55,5 +57,19 @@ public class AuthorController {
         req.setResponse(authorResponse);
         ManuscriptResponseDTO updated = manuscriptService.submitAuthorRevision(id, req, file);
         return ResponseEntity.ok(ApiResponse.success("Revision submitted successfully with document upload", updated));
+    }
+
+    @GetMapping("/manuscripts/{id}/communications")
+    public ResponseEntity<ApiResponse<CommunicationThreadDTO>> getCommunications(@PathVariable String id) {
+        CommunicationThreadDTO thread = manuscriptService.getCommunications(id);
+        return ResponseEntity.ok(ApiResponse.success(thread));
+    }
+
+    @PostMapping("/manuscripts/{id}/communications")
+    public ResponseEntity<ApiResponse<CommunicationThreadDTO>> sendMessage(
+            @PathVariable String id,
+            @Valid @RequestBody SendMessageRequest request) {
+        CommunicationThreadDTO thread = manuscriptService.sendMessage(id, request);
+        return ResponseEntity.ok(ApiResponse.success("Message sent successfully", thread));
     }
 }

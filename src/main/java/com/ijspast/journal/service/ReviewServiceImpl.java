@@ -7,6 +7,7 @@ import com.ijspast.journal.dto.response.ReviewResponseDTO;
 import com.ijspast.journal.entity.Manuscript;
 import com.ijspast.journal.entity.ManuscriptFile;
 import com.ijspast.journal.entity.Review;
+import com.ijspast.journal.entity.ReviewAssignment;
 import com.ijspast.journal.entity.StatusHistoryItem;
 import com.ijspast.journal.entity.User;
 import com.ijspast.journal.exception.BadRequestException;
@@ -96,53 +97,46 @@ public class ReviewServiceImpl implements ReviewService {
         Manuscript manuscript = manuscriptRepository.findById(manuscriptId)
                 .orElseThrow(() -> new ResourceNotFoundException("Manuscript not found: " + manuscriptId));
 
-        boolean isAssigned = (manuscript.getAssignedReviewer() != null && manuscript.getAssignedReviewer().getId().equals(reviewer.getId()))
-                || (manuscript.getAssignedReviewer2() != null && manuscript.getAssignedReviewer2().getId().equals(reviewer.getId()));
+        boolean isCurrentReviewer1 = manuscript.getAssignedReviewer() != null && manuscript.getAssignedReviewer().getId().equals(reviewer.getId());
+        boolean isCurrentReviewer2 = manuscript.getAssignedReviewer2() != null && manuscript.getAssignedReviewer2().getId().equals(reviewer.getId());
 
-        if (!isAssigned) {
-            throw new UnauthorizedException("You are not assigned to review this manuscript.");
+        if (!isCurrentReviewer1 && !isCurrentReviewer2) {
+            throw new UnauthorizedException("You are not currently assigned to review this manuscript. Your assignment may have been superseded or reassigned.");
         }
 
-        // Second-Round Review & Stage 2 Review enforcement:
-        boolean isRevisionState = "Revision Submitted".equalsIgnoreCase(manuscript.getStatus())
-                || (manuscript.getFiles() != null && manuscript.getFiles().stream().anyMatch(ManuscriptFile::isRevised))
-                || (manuscript.getAuthorRevisionResponse() != null && !manuscript.getAuthorRevisionResponse().isBlank());
-
-        boolean isForwardedOrReassigned = Boolean.TRUE.equals(manuscript.getRevisionForwardedToReviewer())
-                || Boolean.TRUE.equals(manuscript.getReviewerReassignedAfterRevision())
-                || Boolean.TRUE.equals(manuscript.getStage2EnabledByEditor())
-                || (manuscript.getHistory() != null && manuscript.getHistory().stream().anyMatch(h ->
-                        h.getComment() != null && (h.getComment().contains("forwarded to peer reviewer") || h.getComment().contains("two-stage peer review evaluation"))));
-
-        int stage = request.getStage() > 0 ? request.getStage() : 1;
-
-        if (isRevisionState && !isForwardedOrReassigned) {
-            throw new BadRequestException("Review feedback is disabled for reviewers until the Editor-in-Chief either forwards revisions to reviewers or reassigns reviewers.");
-        }
-        if ((request.getRound() != null && request.getRound() == 2 || request.getStage() == 3) && !isForwardedOrReassigned) {
-            throw new BadRequestException("Second-round review feedback is disabled for reviewers until the Editor-in-Chief forwards revisions or reassigns reviewers.");
+        // Verify assignment status is not superseded
+        List<ReviewAssignment> reviewerAssignments = reviewAssignmentRepository.findByManuscriptAndReviewer(manuscript, reviewer);
+        boolean hasActiveAssignment = reviewerAssignments.isEmpty() || reviewerAssignments.stream().anyMatch(a ->
+                "ASSIGNED".equalsIgnoreCase(a.getAssignmentStatus()) || "PENDING".equalsIgnoreCase(a.getAssignmentStatus())
+        );
+        boolean isSuperseded = reviewerAssignments.stream().anyMatch(a -> "SUPERSEDED".equalsIgnoreCase(a.getAssignmentStatus()));
+        if (isSuperseded && !hasActiveAssignment) {
+            throw new UnauthorizedException("Your assignment for this manuscript has been superseded or reassigned due to deadline expiration.");
         }
 
-        int round = (request.getRound() != null && request.getRound() > 0)
-                ? request.getRound()
-                : (stage == 3 || Boolean.TRUE.equals(manuscript.getRevisionForwardedToReviewer()) ? 2 : (stage == 2 && isRevisionState ? 2 : 1));
-        if (Boolean.TRUE.equals(manuscript.getRevisionForwardedToReviewer()) && stage != 1 && stage != 2) {
-            stage = 3;
-            round = 2;
-        } else if (round == 2 && stage != 2) {
-            stage = 3;
+        // Requirement 5: Each reviewer may submit feedback a maximum of two times for the same manuscript
+        List<Review> pastReviews = reviewRepository.findByManuscriptAndReviewer(manuscript, reviewer);
+        int submissionCount = pastReviews.size();
+
+        if (submissionCount >= 2) {
+            throw new BadRequestException("You have completed the maximum permitted feedback submissions (2/2) for this manuscript. Your reviewer role has ended.");
         }
 
-        // ── Stage 2 Access Control ──
-        // If Stage 1 review was submitted, Stage 2 submissions are gated until the Editor has explicitly enabled Stage 2.
-        boolean stage1Exists = reviewRepository.findByManuscriptAndReviewerAndStage(manuscript, reviewer, 1).isPresent();
-        if (stage == 2 && stage1Exists && !Boolean.TRUE.equals(manuscript.getStage2EnabledByEditor())) {
-            throw new BadRequestException(
-                    "Stage 2 review submission is not permitted yet. The Editor must first enable Stage 2 after performing 'Forward Revisions to Reviewers' or 'Reassign Reviewer'."
-            );
+        // First submission vs Second submission:
+        if (submissionCount == 1) {
+            // Second submission:
+            // "The second feedback form must remain unavailable until the editor explicitly forwards the revised manuscript to the reviewer for the second review round."
+            // "Do not automatically activate the second form merely because the first feedback has been submitted."
+            boolean isForwarded = Boolean.TRUE.equals(manuscript.getRevisionForwardedToReviewer());
+            if (!isForwarded) {
+                throw new BadRequestException("Second feedback submission is locked until the author submits revisions and the Editor-in-Chief explicitly forwards the revised manuscript for the second review round.");
+            }
         }
 
-        String defaultStageName = (round == 2 || stage == 3)
+        int round = (submissionCount == 1 || Boolean.TRUE.equals(manuscript.getRevisionForwardedToReviewer())) ? 2 : 1;
+        int stage = (round == 2) ? 2 : (request.getStage() > 0 ? request.getStage() : 1);
+
+        String defaultStageName = (round == 2)
                 ? "Round 2: Revision Re-evaluation"
                 : ((stage == 1) ? "Stage 1: Initial Assessment" : "Stage 2: Final Evaluation");
         String stageName = (request.getStageName() != null && !request.getStageName().isBlank())
@@ -188,11 +182,11 @@ public class ReviewServiceImpl implements ReviewService {
         review.setSubmittedAt(LocalDateTime.now());
 
         final int finalRound = round;
-        final int finalStage = stage;
-        reviewAssignmentRepository.findByManuscriptAndReviewerAndRoundNumber(manuscript, reviewer, round)
-                .ifPresent(asgn -> {
+        final int finalSubmissionCount = submissionCount + 1;
+        reviewAssignmentRepository.findByManuscriptAndReviewer(manuscript, reviewer)
+                .forEach(asgn -> {
                     review.setAssignment(asgn);
-                    if (finalRound == 2 || finalStage >= 2) {
+                    if (finalSubmissionCount >= 2 || finalRound == 2) {
                         asgn.setAssignmentStatus("COMPLETED");
                         reviewAssignmentRepository.save(asgn);
                     }
@@ -201,7 +195,7 @@ public class ReviewServiceImpl implements ReviewService {
         Review savedReview = reviewRepository.save(review);
 
         // Update Manuscript Status & Feedback
-        if (round == 2 || stage >= 2) {
+        if (stage >= 2 || finalSubmissionCount >= 2 || finalRound == 2) {
             manuscript.setStatus("Review Completed");
         } else if (!"Review Completed".equalsIgnoreCase(manuscript.getStatus())) {
             manuscript.setStatus("Under Review");
@@ -211,9 +205,9 @@ public class ReviewServiceImpl implements ReviewService {
         manuscript.setReviewerFeedbackForEditor(request.getCommentsForEditor().trim());
 
         String nowStr = LocalDateTime.now().format(DATE_TIME_FORMAT);
-        String historyStatus = (round == 2 || stage >= 2) ? "Review Completed" : "Under Review";
-        String historyDesc = String.format("%s submitted to Editor by %s. Recommendation: %s. Technical quality: %d/5, Originality: %d/5, Clarity: %d/5.",
-                stageName, reviewer.getName(), request.getRecommendation(), request.getTechnicalQuality(), request.getOriginality(), request.getClarity());
+        String historyStatus = (stage >= 2 || finalSubmissionCount >= 2 || finalRound == 2) ? "Review Completed" : "Under Review";
+        String historyDesc = String.format("%s (Feedback %d/2) submitted to Editor by %s. Recommendation: %s. Technical quality: %d/5, Originality: %d/5, Clarity: %d/5.",
+                stageName, finalSubmissionCount, reviewer.getName(), request.getRecommendation(), request.getTechnicalQuality(), request.getOriginality(), request.getClarity());
 
         StatusHistoryItem historyItem = new StatusHistoryItem(
                 "hist_" + System.currentTimeMillis(),
