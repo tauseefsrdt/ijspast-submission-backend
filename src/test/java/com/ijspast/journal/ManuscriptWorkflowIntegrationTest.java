@@ -13,6 +13,7 @@ import com.ijspast.journal.security.JwtTokenProvider;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
@@ -51,6 +52,9 @@ public class ManuscriptWorkflowIntegrationTest {
 
     @Autowired
     private JwtTokenProvider jwtTokenProvider;
+
+    @Value("${app.editor.email}")
+    private String editorEmail;
 
     @Test
     @DisplayName("Complete Journal Lifecycle: Author Submission -> Editor Reviewer Assignment -> Reviewer Scorecard -> Editorial Decision -> Publication")
@@ -122,7 +126,7 @@ public class ManuscriptWorkflowIntegrationTest {
         // -------------------------------------------------------------
         // Step 3: Editor logs in and assigns Reviewer to the first manuscript
         // -------------------------------------------------------------
-        User editor = userRepository.findByEmailIgnoreCase("editor@ijspast.demo").orElseThrow();
+        User editor = userRepository.findByEmailIgnoreCase(editorEmail).orElseThrow();
         String editorJwt = jwtTokenProvider.generateToken(editor.getEmail(), editor.getRole().name(), editor.getId());
 
         User reviewer = userRepository.findByEmailIgnoreCase("workflow.reviewer@university.edu")
@@ -394,7 +398,7 @@ public class ManuscriptWorkflowIntegrationTest {
         User r1 = userRepository.save(new User("rev_dual_1_" + System.currentTimeMillis(), "Dr. Reviewer One", "rev1." + System.currentTimeMillis() + "@test.edu", "Rev@123", UserRole.ROLE_REVIEWER));
         User r2 = userRepository.save(new User("rev_dual_2_" + System.currentTimeMillis(), "Dr. Reviewer Two", "rev2." + System.currentTimeMillis() + "@test.edu", "Rev@123", UserRole.ROLE_REVIEWER));
 
-        User editor = userRepository.findByEmailIgnoreCase("editor@ijspast.demo").orElseThrow();
+        User editor = userRepository.findByEmailIgnoreCase(editorEmail).orElseThrow();
         String editorJwt = jwtTokenProvider.generateToken(editor.getEmail(), editor.getRole().name(), editor.getId());
 
         // Assign dual reviewers

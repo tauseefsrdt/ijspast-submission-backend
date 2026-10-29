@@ -11,6 +11,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
@@ -55,6 +56,9 @@ public class EditorWorkflowAndReviewerLifecycleTest {
     @Autowired
     private JwtTokenProvider jwtTokenProvider;
 
+    @Value("${app.editor.email}")
+    private String editorEmail;
+
     private User editor;
     private String editorJwt;
     private User reviewer1;
@@ -66,8 +70,8 @@ public class EditorWorkflowAndReviewerLifecycleTest {
 
     @BeforeEach
     void setupUsers() {
-        editor = userRepository.findByEmailIgnoreCase("editor@ijspast.demo").orElseGet(() -> {
-            User ed = new User("ed_test", "Editor In Chief", "editor@ijspast.demo", "hashedpass", UserRole.ROLE_EDITOR);
+        editor = userRepository.findByEmailIgnoreCase(editorEmail).orElseGet(() -> {
+            User ed = new User("ed_test", "Editor In Chief", editorEmail, "hashedpass", UserRole.ROLE_EDITOR);
             return userRepository.save(ed);
         });
         editorJwt = jwtTokenProvider.generateToken(editor.getEmail(), editor.getRole().name(), editor.getId());

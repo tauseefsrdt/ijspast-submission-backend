@@ -21,6 +21,7 @@ import com.ijspast.journal.mapper.ManuscriptMapper;
 import com.ijspast.journal.repository.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -57,6 +58,12 @@ public class ManuscriptServiceImpl implements ManuscriptService {
     private final EmailService emailService;
     private final PasswordEncoder passwordEncoder;
     private final ManuscriptCommunicationRepository communicationRepository;
+
+    @Value("${app.editor.email:${EDITOR_EMAIL:}}")
+    private String editorEmail;
+
+    @Value("${app.editor.name:${EDITOR_NAME:Prof. (Dr.) Vijay Tiwari (Editor-in-Chief)}}")
+    private String editorName;
 
     public ManuscriptServiceImpl(ManuscriptRepository manuscriptRepository,
                                  UserRepository userRepository,
@@ -465,9 +472,11 @@ public class ManuscriptServiceImpl implements ManuscriptService {
         manuscriptRevisionRepository.save(revisionRecord);
 
         // Notify Editor ONLY (Author resubmissions are reviewed by Editor before explicit forwarding to Reviewer)
+        String targetEditorEmail = (editorEmail != null && !editorEmail.isBlank()) ? editorEmail : "";
+        String targetEditorName = (editorName != null && !editorName.isBlank()) ? editorName : "Editor-in-Chief";
         emailService.sendRevisionSubmittedEmail(
-                "editor@ijspast.demo",
-                "Prof. (Dr.) Vijay Tiwari (Editor-in-Chief)",
+                targetEditorEmail,
+                targetEditorName,
                 "Editor",
                 saved.getId(),
                 saved.getTitle(),

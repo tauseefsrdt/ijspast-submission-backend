@@ -18,6 +18,7 @@ import com.ijspast.journal.mapper.ReviewMapper;
 import com.ijspast.journal.repository.ManuscriptRepository;
 import com.ijspast.journal.repository.ReviewAssignmentRepository;
 import com.ijspast.journal.repository.ReviewRepository;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -40,6 +41,9 @@ public class ReviewServiceImpl implements ReviewService {
     private final ReviewMapper reviewMapper;
     private final ManuscriptMapper manuscriptMapper;
     private final EmailService emailService;
+
+    @Value("${app.editor.email:${EDITOR_EMAIL:}}")
+    private String editorEmail;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -222,7 +226,7 @@ public class ReviewServiceImpl implements ReviewService {
 
         // Dispatch notification email to Editor
         emailService.sendReviewCompletedEmail(
-                "editor@ijspast.demo",
+                editorEmail,
                 reviewer.getName(),
                 manuscript.getId(),
                 String.format("[%s] %s", stageName, manuscript.getTitle()),

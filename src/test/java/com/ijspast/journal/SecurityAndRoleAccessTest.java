@@ -12,6 +12,7 @@ import com.ijspast.journal.security.JwtTokenProvider;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
@@ -49,6 +50,9 @@ public class SecurityAndRoleAccessTest {
     @Autowired
     private JwtTokenProvider jwtTokenProvider;
 
+    @Value("${app.editor.email}")
+    private String editorEmail;
+
     @Test
     @DisplayName("Unauthenticated request to protected endpoint returns 401")
     void testUnauthenticatedAccessFails() throws Exception {
@@ -75,7 +79,7 @@ public class SecurityAndRoleAccessTest {
     @Test
     @DisplayName("Editor creates and invites a new Reviewer")
     void testEditorCreatesReviewer() throws Exception {
-        User editor = userRepository.findByEmailIgnoreCase("editor@ijspast.demo").orElseThrow();
+        User editor = userRepository.findByEmailIgnoreCase(editorEmail).orElseThrow();
         String editorJwt = jwtTokenProvider.generateToken(editor.getEmail(), editor.getRole().name(), editor.getId());
 
         String reviewerEmail = "prof.sharma." + System.currentTimeMillis() + "@iitk.ac.in";
@@ -104,7 +108,7 @@ public class SecurityAndRoleAccessTest {
     @Test
     @DisplayName("Expired reset token is rejected with 400 Bad Request")
     void testExpiredResetTokenRejected() throws Exception {
-        User user = userRepository.findByEmailIgnoreCase("editor@ijspast.demo").orElseThrow();
+        User user = userRepository.findByEmailIgnoreCase(editorEmail).orElseThrow();
         String rawToken = "expired-token-xyz";
 
         MessageDigest digest = MessageDigest.getInstance("SHA-256");

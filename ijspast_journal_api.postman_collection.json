@@ -20,6 +20,11 @@
       "key": "manuscriptId",
       "value": "IJSPAST-2026-0001",
       "type": "string"
+    },
+    {
+      "key": "editorEmail",
+      "value": "",
+      "type": "string"
     }
   ],
   "item": [
@@ -35,7 +40,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"editor@ijspast.demo\",\n  \"password\": \"Editor@123\"\n}"
+              "raw": "{\n  \"email\": \"{{editorEmail}}\",\n  \"password\": \"Editor@123\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/auth/login",

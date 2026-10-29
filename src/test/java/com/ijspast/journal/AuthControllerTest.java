@@ -15,6 +15,7 @@ import com.ijspast.journal.security.JwtTokenProvider;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
@@ -52,6 +53,9 @@ public class AuthControllerTest {
     @Autowired
     private JwtTokenProvider jwtTokenProvider;
 
+    @Value("${app.editor.email}")
+    private String editorEmail;
+
     @org.junit.jupiter.api.BeforeEach
     void setupRoleUsers() {
         org.springframework.security.crypto.password.PasswordEncoder encoder =
@@ -79,7 +83,7 @@ public class AuthControllerTest {
     @Test
     @DisplayName("Login with valid editor credentials returns JWT and editor role")
     void testValidEditorLogin() throws Exception {
-        LoginRequest request = new LoginRequest("editor@ijspast.demo", "Editor@123");
+        LoginRequest request = new LoginRequest(editorEmail, "Editor@123");
 
         mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -87,14 +91,14 @@ public class AuthControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.token").isNotEmpty())
-                .andExpect(jsonPath("$.data.user.email").value("editor@ijspast.demo"))
+                .andExpect(jsonPath("$.data.user.email").value(editorEmail))
                 .andExpect(jsonPath("$.data.user.role").value("editor"));
     }
 
     @Test
     @DisplayName("Login with invalid password returns 401 Unauthorized")
     void testInvalidPasswordLogin() throws Exception {
-        LoginRequest request = new LoginRequest("editor@ijspast.demo", "WrongPassword@999");
+        LoginRequest request = new LoginRequest(editorEmail, "WrongPassword@999");
 
         mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -130,7 +134,7 @@ public class AuthControllerTest {
     @Test
     @DisplayName("Editor password reset request succeeds with 200 OK")
     void testEditorForgotPasswordSuccess() throws Exception {
-        ForgotPasswordRequest request = new ForgotPasswordRequest("editor@ijspast.demo");
+        ForgotPasswordRequest request = new ForgotPasswordRequest(editorEmail);
 
         mockMvc.perform(post("/api/v1/auth/forgot-password")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -142,13 +146,13 @@ public class AuthControllerTest {
     @Test
     @DisplayName("Editor resend OTP request succeeds with 200 OK")
     void testEditorResendOtpSuccess() throws Exception {
-        ForgotPasswordRequest forgotReq = new ForgotPasswordRequest("editor@ijspast.demo");
+        ForgotPasswordRequest forgotReq = new ForgotPasswordRequest(editorEmail);
         mockMvc.perform(post("/api/v1/auth/forgot-password")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(forgotReq)))
                 .andExpect(status().isOk());
 
-        ResendOtpRequest request = new ResendOtpRequest("editor@ijspast.demo");
+        ResendOtpRequest request = new ResendOtpRequest(editorEmail);
 
         mockMvc.perform(post("/api/v1/auth/resend-otp")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -202,7 +206,7 @@ public class AuthControllerTest {
     @Test
     @DisplayName("Editor can change password authenticated successfully")
     void testEditorChangePasswordSuccess() throws Exception {
-        User user = userRepository.findByEmailIgnoreCase("editor@ijspast.demo").orElseThrow();
+        User user = userRepository.findByEmailIgnoreCase(editorEmail).orElseThrow();
         String jwt = jwtTokenProvider.generateToken(user.getEmail(), user.getRole().name(), user.getId());
 
         ChangePasswordRequest request = new ChangePasswordRequest("Editor@123", "NewEditorPass@123", "NewEditorPass@123");
@@ -215,7 +219,7 @@ public class AuthControllerTest {
                 .andExpect(jsonPath("$.success").value(true));
 
         // Restore password
-        user = userRepository.findByEmailIgnoreCase("editor@ijspast.demo").orElseThrow();
+        user = userRepository.findByEmailIgnoreCase(editorEmail).orElseThrow();
         user.setPasswordHash(new org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder().encode("Editor@123"));
         userRepository.save(user);
     }
@@ -223,13 +227,13 @@ public class AuthControllerTest {
     @Test
     @DisplayName("Get current user /api/v1/auth/me returns authenticated user details")
     void testGetCurrentUser() throws Exception {
-        User user = userRepository.findByEmailIgnoreCase("editor@ijspast.demo").orElseThrow();
+        User user = userRepository.findByEmailIgnoreCase(editorEmail).orElseThrow();
         String jwt = jwtTokenProvider.generateToken(user.getEmail(), user.getRole().name(), user.getId());
 
         mockMvc.perform(get("/api/v1/auth/me")
                         .header("Authorization", "Bearer " + jwt))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.email").value("editor@ijspast.demo"))
+                .andExpect(jsonPath("$.data.email").value(editorEmail))
                 .andExpect(jsonPath("$.data.role").value("editor"));
     }
 

@@ -33,16 +33,16 @@ public class DataInitializer implements CommandLineRunner {
     private final AccountSetupTokenRepository accountSetupTokenRepository;
     private final PasswordEncoder passwordEncoder;
 
-    @Value("${app.editor.email:editor@ijspast.demo}")
+    @Value("${app.editor.email:${EDITOR_EMAIL:}}")
     private String editorEmail;
 
-    @Value("${app.editor.password:Editor@123}")
+    @Value("${app.editor.password:${EDITOR_PASSWORD:Editor@123}}")
     private String editorPassword;
 
-    @Value("${app.editor.name:Prof. (Dr.) Vijay Tiwari}")
+    @Value("${app.editor.name:${EDITOR_NAME:Prof. (Dr.) Vijay Tiwari}}")
     private String editorName;
 
-    @Value("${app.editor.institution:Shri Ramswaroop Memorial University}")
+    @Value("${app.editor.institution:${EDITOR_INSTITUTION:Shri Ramswaroop Memorial University}}")
     private String editorInstitution;
 
     public DataInitializer(UserRepository userRepository,
@@ -70,9 +70,12 @@ public class DataInitializer implements CommandLineRunner {
         // cleanLegacyStaticData();
 
         // Initialize Primary Editor Account ONLY
-        seedEditor();
-
-        log.info("Database initialization completed. Only Editor initialized: {}", editorEmail);
+        if (editorEmail != null && !editorEmail.isBlank()) {
+            seedEditor();
+            log.info("Database initialization completed. Only Editor initialized: {}", editorEmail);
+        } else {
+            log.warn("Database initialization skipped: app.editor.email / EDITOR_EMAIL is not configured.");
+        }
     }
 
     private void cleanLegacyStaticData() {
@@ -86,17 +89,6 @@ public class DataInitializer implements CommandLineRunner {
                     reviewRepository.deleteAll(reviews);
                 }
                 manuscriptRepository.delete(m);
-            });
-        }
-
-        // 2. Delete legacy demo users (author@ijspast.demo, reviewer@ijspast.demo, rev2@ijspast.demo)
-        List<String> demoEmails = List.of("author@ijspast.demo", "reviewer@ijspast.demo", "rev2@ijspast.demo");
-        for (String email : demoEmails) {
-            userRepository.findByEmailIgnoreCase(email).ifPresent(user -> {
-                log.info("Purging legacy demo user: {}", email);
-                passwordResetTokenRepository.deleteByUser(user);
-                accountSetupTokenRepository.deleteByUser(user);
-                userRepository.delete(user);
             });
         }
     }

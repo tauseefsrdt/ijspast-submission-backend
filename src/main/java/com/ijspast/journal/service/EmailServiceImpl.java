@@ -28,14 +28,20 @@ public class EmailServiceImpl implements EmailService {
     private final EmailNotificationLogRepository emailLogRepository;
     private final JavaMailSender mailSender;
 
-    @Value("${spring.mail.username:no-reply@srdt.co.in}")
+    @Value("${spring.mail.username:}")
     private String smtpUsername;
 
-    @Value("${app.mail.from:${spring.mail.username:no-reply@srdt.co.in}}")
+    @Value("${app.mail.from:${spring.mail.username:}}")
     private String mailFrom;
 
-    @Value("${app.frontend-url:http://localhost:5173}")
+    @Value("${app.frontend-url:${FRONTEND_URL:http://localhost:5173}}")
     private String frontendUrl;
+
+    @Value("${app.editor.email:${EDITOR_EMAIL:}}")
+    private String defaultEditorEmail;
+
+    @Value("${app.editor.name:${EDITOR_NAME:Prof. (Dr.) Vijay Tiwari (Editor-in-Chief)}}")
+    private String defaultEditorName;
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
@@ -47,8 +53,8 @@ public class EmailServiceImpl implements EmailService {
     }
 
     private void trySendMimeMessage(String to, String subject, String content) {
-        if (mailSender == null || smtpUsername == null || smtpUsername.isBlank()) {
-            log.info("SMTP credentials not configured. Email logged to Outbox for testing: To={}, Subject={}", to, subject);
+        if (mailSender == null || smtpUsername == null || smtpUsername.isBlank() || to == null || to.isBlank()) {
+            log.info("SMTP credentials or recipient not configured. Email logged to Outbox for testing: To={}, Subject={}", to, subject);
             return;
         }
 
@@ -183,7 +189,8 @@ public class EmailServiceImpl implements EmailService {
     @Transactional
     public DispatchedEmailDTO sendReviewCompletedEmail(String editorEmail, String reviewerName,
                                                        String manuscriptId, String manuscriptTitle, String recommendation) {
-        String targetEmail = (editorEmail != null && !editorEmail.isBlank()) ? editorEmail : "editor@ijspast.demo";
+        String targetEmail = (editorEmail != null && !editorEmail.isBlank()) ? editorEmail : defaultEditorEmail;
+        String targetName = (defaultEditorName != null && !defaultEditorName.isBlank()) ? defaultEditorName : "Prof. (Dr.) Vijay Tiwari (Editor-in-Chief)";
         String subject = "[IJSPAST] Review Completed by " + reviewerName + " for [" + manuscriptId + "]";
         String content = "Dear Editor-in-Chief,\n\n"
                 + "Peer reviewer " + reviewerName + " has completed their evaluation for manuscript " + manuscriptId + ":\n"
@@ -193,7 +200,7 @@ public class EmailServiceImpl implements EmailService {
                 + "Portal URL: " + frontendUrl + "/editor/manuscript/" + manuscriptId + "\n\n"
                 + "IJSPAST Automated Peer Review System";
 
-        return recordAndDispatch(targetEmail, "Prof. (Dr.) Vijay Tiwari (Editor-in-Chief)", subject, "REVIEW_COMPLETED", manuscriptId, content);
+        return recordAndDispatch(targetEmail, targetName, subject, "REVIEW_COMPLETED", manuscriptId, content);
     }
 
     @Override
