@@ -767,12 +767,13 @@ public class ManuscriptServiceImpl implements ManuscriptService {
         String deadlineStr = LocalDate.now().plusDays(deadlineDays).toString();
         manuscript.setReviewDeadline(deadlineStr);
         manuscript.setRevisionForwardedToReviewer(true);
+        manuscript.setStage2EnabledByEditor(true);
         manuscript.setStatus("Under Review");
 
         String nowStr = LocalDateTime.now().format(DATE_TIME_FORMAT);
         String remarks = (request != null && request.getNotes() != null) ? request.getNotes().trim() : "";
         String historyComment = "Author revised submission and rebuttal reviewed by Editor (" + editor.getName()
-                + ") and explicitly forwarded to peer reviewer for re-evaluation. Due date: " + deadlineStr + "."
+                + ") and explicitly forwarded to peer reviewer for re-evaluation. Stage 2 review feedback forms automatically activated. Due date: " + deadlineStr + "."
                 + (remarks.isEmpty() ? "" : " Notes: " + remarks);
 
         StatusHistoryItem hist = new StatusHistoryItem(
@@ -790,6 +791,7 @@ public class ManuscriptServiceImpl implements ManuscriptService {
         reviewAssignmentRepository.findByManuscriptIdOrderByRoundNumberAscAssignedDateAsc(manuscriptId)
                 .forEach(a -> {
                     a.setRevisionForwarded(true);
+                    a.setStage2Enabled(true);
                     reviewAssignmentRepository.save(a);
                 });
 
@@ -1225,14 +1227,20 @@ public class ManuscriptServiceImpl implements ManuscriptService {
         validateCommunicationAccess(manuscript, user);
 
         List<ManuscriptCommunication> comms = communicationRepository.findByManuscriptOrderBySentAtAsc(manuscript);
-        List<CommunicationMessageDTO> messageDTOs = comms.stream().map(c -> new CommunicationMessageDTO(
-                c.getId(),
-                c.getSender() != null ? c.getSender().getId() : null,
-                c.getSenderName(),
-                c.getSenderRole(),
-                c.getMessage(),
-                c.getSentAt() != null ? c.getSentAt().toString() : ""
-        )).collect(Collectors.toList());
+        List<CommunicationMessageDTO> messageDTOs = comms.stream().map(c -> {
+            CommunicationMessageDTO dto = new CommunicationMessageDTO(
+                    c.getId(),
+                    c.getSender() != null ? c.getSender().getId() : null,
+                    c.getSenderName(),
+                    c.getSenderRole(),
+                    c.getMessage(),
+                    c.getSentAt() != null ? c.getSentAt().toString() : ""
+            );
+            dto.setAttachmentName(c.getAttachmentName());
+            dto.setAttachmentUrl(c.getAttachmentUrl());
+            dto.setAttachmentSize(c.getAttachmentSize());
+            return dto;
+        }).collect(Collectors.toList());
 
         boolean isPost = manuscriptMapper.isPostReviewStage(manuscript);
         int total = messageDTOs.size();
@@ -1269,6 +1277,39 @@ public class ManuscriptServiceImpl implements ManuscriptService {
                 role,
                 request.getMessage().trim()
         );
+
+        if (request.getAttachmentName() != null && !request.getAttachmentName().isBlank()) {
+            comm.setAttachmentName(request.getAttachmentName().trim());
+            comm.setAttachmentUrl(request.getAttachmentUrl());
+            comm.setAttachmentSize(request.getAttachmentSize());
+
+            // If author uploads an attachment after making changes, record it as a revised manuscript file
+            if ("Author".equalsIgnoreCase(role)) {
+                int revisedVersion = (int) manuscript.getFiles().stream().filter(ManuscriptFile::isRevised).count() + 1;
+                String fileId = "file_rev_" + UUID.randomUUID().toString().replace("-", "").substring(0, 10);
+                long size = request.getAttachmentSize() != null && request.getAttachmentSize() > 0 ? request.getAttachmentSize() : 3600000L;
+                String fileKey = fileStorageService.storeFile(("Communication attachment for " + manuscriptId).getBytes(), request.getAttachmentName().trim());
+                ManuscriptFile revisedFile = new ManuscriptFile(fileId, request.getAttachmentName().trim(), size, "application/pdf", fileKey, revisedVersion, true);
+                manuscript.addFile(revisedFile);
+
+                manuscript.setStatus("Revision Submitted");
+                manuscript.setRevisionForwardedToReviewer(false);
+                manuscript.setAuthorRevisionResponse("Changes submitted via Editor-Author Communication: " + request.getMessage().trim());
+
+                String nowStr = LocalDateTime.now().format(DATE_TIME_FORMAT);
+                StatusHistoryItem hist = new StatusHistoryItem(
+                        "hist_" + System.currentTimeMillis(),
+                        "Revision Submitted",
+                        nowStr,
+                        user.getName(),
+                        "Author",
+                        "Revised manuscript uploaded via Editor Communications: " + request.getAttachmentName().trim()
+                );
+                manuscript.addHistoryItem(hist);
+                manuscriptRepository.save(manuscript);
+            }
+        }
+
         communicationRepository.save(comm);
 
         return getCommunications(manuscriptId);

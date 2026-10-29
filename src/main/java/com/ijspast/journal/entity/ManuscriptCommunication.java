@@ -28,6 +28,15 @@ public class ManuscriptCommunication {
     @Column(nullable = false, columnDefinition = "TEXT")
     private String message;
 
+    @Column(name = "attachment_name")
+    private String attachmentName;
+
+    @Column(name = "attachment_url")
+    private String attachmentUrl;
+
+    @Column(name = "attachment_size")
+    private Long attachmentSize;
+
     @Column(name = "sent_at", nullable = false, updatable = false)
     private LocalDateTime sentAt;
 
@@ -97,6 +106,30 @@ public class ManuscriptCommunication {
 
     public void setMessage(String message) {
         this.message = message;
+    }
+
+    public String getAttachmentName() {
+        return attachmentName;
+    }
+
+    public void setAttachmentName(String attachmentName) {
+        this.attachmentName = attachmentName;
+    }
+
+    public String getAttachmentUrl() {
+        return attachmentUrl;
+    }
+
+    public void setAttachmentUrl(String attachmentUrl) {
+        this.attachmentUrl = attachmentUrl;
+    }
+
+    public Long getAttachmentSize() {
+        return attachmentSize;
+    }
+
+    public void setAttachmentSize(Long attachmentSize) {
+        this.attachmentSize = attachmentSize;
     }
 
     public LocalDateTime getSentAt() {

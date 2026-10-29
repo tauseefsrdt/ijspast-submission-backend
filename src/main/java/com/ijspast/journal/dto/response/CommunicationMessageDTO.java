@@ -8,6 +8,9 @@ public class CommunicationMessageDTO {
     private String senderRole; // "EDITOR" or "AUTHOR"
     private String message;
     private String sentAt;
+    private String attachmentName;
+    private String attachmentUrl;
+    private Long attachmentSize;
 
     public CommunicationMessageDTO() {
     }
@@ -19,6 +22,18 @@ public class CommunicationMessageDTO {
         this.senderRole = senderRole;
         this.message = message;
         this.sentAt = sentAt;
+    }
+
+    public CommunicationMessageDTO(String id, String senderId, String senderName, String senderRole, String message, String sentAt, String attachmentName, String attachmentUrl, Long attachmentSize) {
+        this.id = id;
+        this.senderId = senderId;
+        this.senderName = senderName;
+        this.senderRole = senderRole;
+        this.message = message;
+        this.sentAt = sentAt;
+        this.attachmentName = attachmentName;
+        this.attachmentUrl = attachmentUrl;
+        this.attachmentSize = attachmentSize;
     }
 
     public String getId() {
@@ -67,5 +82,29 @@ public class CommunicationMessageDTO {
 
     public void setSentAt(String sentAt) {
         this.sentAt = sentAt;
+    }
+
+    public String getAttachmentName() {
+        return attachmentName;
+    }
+
+    public void setAttachmentName(String attachmentName) {
+        this.attachmentName = attachmentName;
+    }
+
+    public String getAttachmentUrl() {
+        return attachmentUrl;
+    }
+
+    public void setAttachmentUrl(String attachmentUrl) {
+        this.attachmentUrl = attachmentUrl;
+    }
+
+    public Long getAttachmentSize() {
+        return attachmentSize;
+    }
+
+    public void setAttachmentSize(Long attachmentSize) {
+        this.attachmentSize = attachmentSize;
     }
 }
