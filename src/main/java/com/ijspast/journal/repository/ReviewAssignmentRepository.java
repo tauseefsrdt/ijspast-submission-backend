@@ -27,4 +27,6 @@ public interface ReviewAssignmentRepository extends JpaRepository<ReviewAssignme
     Optional<ReviewAssignment> findByManuscriptIdAndReviewerIdAndRoundNumber(String manuscriptId, String reviewerId, int roundNumber);
 
     long countByReviewerAndAssignmentStatus(User reviewer, String status);
+
+    List<ReviewAssignment> findBySupersededByReviewer(User reviewer);
 }

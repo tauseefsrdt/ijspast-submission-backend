@@ -18,6 +18,7 @@ public class ManuscriptResponseDTO {
     private String coauthors;
     private UploadedFileDTO file;
     private List<UploadedFileDTO> revisedFiles = new ArrayList<>();
+    private List<ManuscriptRevisionDTO> revisions = new ArrayList<>();
     private String status;
     private String submissionDate;
     private String updatedAt;
@@ -138,6 +139,14 @@ public class ManuscriptResponseDTO {
 
     public void setRevisedFiles(List<UploadedFileDTO> revisedFiles) {
         this.revisedFiles = revisedFiles;
+    }
+
+    public List<ManuscriptRevisionDTO> getRevisions() {
+        return revisions;
+    }
+
+    public void setRevisions(List<ManuscriptRevisionDTO> revisions) {
+        this.revisions = revisions;
     }
 
     public String getStatus() {

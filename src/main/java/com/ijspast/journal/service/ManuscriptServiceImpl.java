@@ -231,7 +231,7 @@ public class ManuscriptServiceImpl implements ManuscriptService {
 
             if (fileUploaded && fileKey != null) {
                 int nextVersion = existing.getFiles().size() + 1;
-                String fileId = "file_" + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
+                String fileId = "file_" + UUID.randomUUID().toString().replace("-", "");
                 ManuscriptFile manuscriptFile = new ManuscriptFile(fileId, fileName, fileSize, fileType, fileKey, nextVersion, true);
                 existing.addFile(manuscriptFile);
             }
@@ -346,7 +346,7 @@ public class ManuscriptServiceImpl implements ManuscriptService {
             );
         }
 
-        String fileId = "file_" + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
+        String fileId = "file_" + UUID.randomUUID().toString().replace("-", "");
         ManuscriptFile manuscriptFile = new ManuscriptFile(fileId, fileName, fileSize, fileType, fileKey, 1, false);
         manuscript.addFile(manuscriptFile);
 
@@ -454,8 +454,21 @@ public class ManuscriptServiceImpl implements ManuscriptService {
             fileKey = fileStorageService.storeFile(("Revised payload for " + id).getBytes(), fileName);
         }
 
-        int revisedVersion = (int) manuscript.getFiles().stream().filter(ManuscriptFile::isRevised).count() + 1;
-        String fileId = "file_rev_" + UUID.randomUUID().toString().replace("-", "").substring(0, 10);
+        List<ManuscriptRevision> existingRevisions = manuscriptRevisionRepository.findByManuscriptIdOrderByRoundNumberAsc(id);
+        int maxRound = existingRevisions.stream().mapToInt(ManuscriptRevision::getRoundNumber).max().orElse(0);
+        int filesRevCount = (int) manuscript.getFiles().stream().filter(ManuscriptFile::isRevised).count();
+        int histRevCount = calculateRevisionCount(manuscript);
+        int revisedVersion = Math.max(maxRound, Math.max(filesRevCount, histRevCount)) + 1;
+
+        // Ensure round number is unique for this manuscript
+        java.util.Set<Integer> existingRounds = existingRevisions.stream()
+                .map(ManuscriptRevision::getRoundNumber)
+                .collect(java.util.stream.Collectors.toSet());
+        while (existingRounds.contains(revisedVersion)) {
+            revisedVersion++;
+        }
+
+        String fileId = "file_rev_" + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
         ManuscriptFile revisedFile = new ManuscriptFile(fileId, fileName, fileSize, fileType, fileKey, revisedVersion, true);
         manuscript.addFile(revisedFile);
 
@@ -473,34 +486,47 @@ public class ManuscriptServiceImpl implements ManuscriptService {
                 nowStr,
                 author.getName(),
                 "Author",
-                "Revised manuscript uploaded: " + fileName + ". Submitted to Editor for assessment. Author remarks: " + request.getResponse().trim()
+                "Revision v" + (revisedVersion + 1) + " submitted: " + fileName + ". Submitted to Editor for assessment. Author remarks: " + request.getResponse().trim()
         );
         manuscript.addHistoryItem(hist);
 
-        Manuscript saved = manuscriptRepository.save(manuscript);
-
-        // Record normalized ManuscriptRevision
-        String revId = "rev_" + saved.getId() + "_v" + revisedVersion;
+        // Record normalized ManuscriptRevision with globally unique ID
+        String revId = "rev_" + manuscript.getId() + "_v" + revisedVersion + "_" + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
         ManuscriptRevision revisionRecord = new ManuscriptRevision(
                 revId,
-                saved,
+                manuscript,
                 revisedVersion,
                 revisedFile,
                 request.getResponse().trim()
         );
-        manuscriptRevisionRepository.save(revisionRecord);
+        manuscript.addRevision(revisionRecord);
+
+        // Cascade persist manuscript and all associated children (files, history, revisions) atomically
+        Manuscript saved = manuscriptRepository.save(manuscript);
 
         // Notify Editor ONLY (Author resubmissions are reviewed by Editor before explicit forwarding to Reviewer)
-        String targetEditorEmail = (editorEmail != null && !editorEmail.isBlank()) ? editorEmail : "";
-        String targetEditorName = (editorName != null && !editorName.isBlank()) ? editorName : "Editor-in-Chief";
-        emailService.sendRevisionSubmittedEmail(
-                targetEditorEmail,
-                targetEditorName,
-                "Editor",
-                saved.getId(),
-                saved.getTitle(),
-                request.getResponse().trim()
-        );
+        String targetEditorEmail = (editorEmail != null && !editorEmail.isBlank()) ? editorEmail : "editor@ijspast.demo";
+        String targetEditorName = (editorName != null && !editorName.isBlank()) ? editorName : "Prof. (Dr.) Vijay Tiwari";
+        Optional<User> dbEditor = userRepository.findByRoleOrderByNameAsc(UserRole.ROLE_EDITOR).stream().findFirst();
+        if (dbEditor.isPresent()) {
+            if (targetEditorEmail.isBlank() || targetEditorEmail.equals("editor@ijspast.demo")) {
+                targetEditorEmail = dbEditor.get().getEmail();
+            }
+            targetEditorName = dbEditor.get().getName();
+        }
+
+        try {
+            emailService.sendRevisionSubmittedEmail(
+                    targetEditorEmail,
+                    targetEditorName,
+                    "Editor",
+                    saved.getId(),
+                    saved.getTitle(),
+                    request.getResponse().trim()
+            );
+        } catch (Exception ex) {
+            log.warn("Failed to dispatch revision submission email to editor: {}", ex.getMessage());
+        }
 
         return manuscriptMapper.toAuthorDTO(saved);
     }
@@ -1190,7 +1216,7 @@ public class ManuscriptServiceImpl implements ManuscriptService {
         LocalDate newAssignedDate = LocalDate.now();
         LocalDate newDeadline = newAssignedDate.plusDays(15);
         ReviewAssignment newAsgn = new ReviewAssignment();
-        newAsgn.setId("asgn_" + UUID.randomUUID().toString().replace("-", "").substring(0, 12));
+        newAsgn.setId("asgn_" + UUID.randomUUID().toString().replace("-", ""));
         newAsgn.setManuscript(manuscript);
         newAsgn.setReviewer(replacement);
         newAsgn.setRoundNumber(activeRound);
@@ -1298,7 +1324,7 @@ public class ManuscriptServiceImpl implements ManuscriptService {
 
         String role = determineSenderRole(user, manuscript);
         ManuscriptCommunication comm = new ManuscriptCommunication(
-                "comm_" + UUID.randomUUID().toString().replace("-", "").substring(0, 12),
+                "comm_" + UUID.randomUUID().toString().replace("-", ""),
                 manuscript,
                 user,
                 user.getName(),
@@ -1314,7 +1340,7 @@ public class ManuscriptServiceImpl implements ManuscriptService {
             // If author uploads an attachment after making changes, record it as a revised manuscript file
             if ("Author".equalsIgnoreCase(role)) {
                 int revisedVersion = (int) manuscript.getFiles().stream().filter(ManuscriptFile::isRevised).count() + 1;
-                String fileId = "file_rev_" + UUID.randomUUID().toString().replace("-", "").substring(0, 10);
+                String fileId = "file_rev_" + UUID.randomUUID().toString().replace("-", "");
                 long size = request.getAttachmentSize() != null && request.getAttachmentSize() > 0 ? request.getAttachmentSize() : 3600000L;
                 String fileKey = fileStorageService.storeFile(("Communication attachment for " + manuscriptId).getBytes(), request.getAttachmentName().trim());
                 ManuscriptFile revisedFile = new ManuscriptFile(fileId, request.getAttachmentName().trim(), size, "application/pdf", fileKey, revisedVersion, true);
@@ -1498,7 +1524,7 @@ public class ManuscriptServiceImpl implements ManuscriptService {
                 })
                 .orElseGet(() -> {
                     Author a = new Author();
-                    a.setId("auth_" + System.currentTimeMillis() + "_" + UUID.randomUUID().toString().substring(0, 5));
+                    a.setId("auth_" + System.currentTimeMillis() + "_" + UUID.randomUUID().toString().replace("-", ""));
                     a.setUser(authorUser);
                     a.setName(name != null ? name : (authorUser != null ? authorUser.getName() : "Author"));
                     a.setEmail(cleanEmail);
@@ -1518,7 +1544,7 @@ public class ManuscriptServiceImpl implements ManuscriptService {
                 .or(() -> reviewerRepository.findByEmailIgnoreCase(cleanEmail))
                 .orElseGet(() -> {
                     Reviewer r = new Reviewer();
-                    r.setId("rev_rec_" + System.currentTimeMillis() + "_" + UUID.randomUUID().toString().substring(0, 5));
+                    r.setId("rev_rec_" + System.currentTimeMillis() + "_" + UUID.randomUUID().toString().replace("-", ""));
                     r.setUser(user);
                     r.setName(user.getName());
                     r.setEmail(cleanEmail);

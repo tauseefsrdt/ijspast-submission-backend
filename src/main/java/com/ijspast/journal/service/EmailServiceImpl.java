@@ -75,7 +75,7 @@ public class EmailServiceImpl implements EmailService {
 
     private DispatchedEmailDTO recordAndDispatch(String to, String toName, String subject, String type,
                                                  String manuscriptId, String content) {
-        String id = "mail_" + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
+        String id = "mail_" + UUID.randomUUID().toString().replace("-", "");
         String sentAt = LocalDateTime.now().format(DATE_FORMATTER);
 
         EmailNotificationLog logEntry = new EmailNotificationLog(

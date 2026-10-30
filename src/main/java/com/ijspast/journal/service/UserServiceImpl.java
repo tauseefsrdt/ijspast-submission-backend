@@ -15,6 +15,10 @@ import com.ijspast.journal.entity.Review;
 import com.ijspast.journal.entity.Reviewer;
 import com.ijspast.journal.entity.User;
 import com.ijspast.journal.entity.UserProfile;
+import com.ijspast.journal.entity.ReviewAssignment;
+import com.ijspast.journal.repository.AccountSetupTokenRepository;
+import com.ijspast.journal.repository.PasswordResetTokenRepository;
+import com.ijspast.journal.repository.ReviewAssignmentRepository;
 import com.ijspast.journal.entity.UserRole;
 import com.ijspast.journal.exception.DuplicateResourceException;
 import com.ijspast.journal.exception.ResourceNotFoundException;
@@ -49,6 +53,9 @@ public class UserServiceImpl implements UserService {
     private final PasswordEncoder passwordEncoder;
     private final EmailService emailService;
     private final UserUniquenessValidationService userUniquenessValidationService;
+    private final ReviewAssignmentRepository reviewAssignmentRepository;
+    private final AccountSetupTokenRepository accountSetupTokenRepository;
+    private final PasswordResetTokenRepository passwordResetTokenRepository;
 
     public UserServiceImpl(UserRepository userRepository,
                            UserProfileRepository userProfileRepository,
@@ -59,7 +66,10 @@ public class UserServiceImpl implements UserService {
                            UserMapper userMapper,
                            PasswordEncoder passwordEncoder,
                            EmailService emailService,
-                           UserUniquenessValidationService userUniquenessValidationService) {
+                           UserUniquenessValidationService userUniquenessValidationService,
+                           ReviewAssignmentRepository reviewAssignmentRepository,
+                           AccountSetupTokenRepository accountSetupTokenRepository,
+                           PasswordResetTokenRepository passwordResetTokenRepository) {
         this.userRepository = userRepository;
         this.userProfileRepository = userProfileRepository;
         this.reviewerRepository = reviewerRepository;
@@ -70,6 +80,9 @@ public class UserServiceImpl implements UserService {
         this.passwordEncoder = passwordEncoder;
         this.emailService = emailService;
         this.userUniquenessValidationService = userUniquenessValidationService;
+        this.reviewAssignmentRepository = reviewAssignmentRepository;
+        this.accountSetupTokenRepository = accountSetupTokenRepository;
+        this.passwordResetTokenRepository = passwordResetTokenRepository;
     }
 
     @Override
@@ -270,9 +283,27 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional
     public void deleteReviewer(String id) {
-        User user = userRepository.findById(id)
-                .orElseGet(() -> reviewerRepository.findById(id).map(Reviewer::getUser).orElse(null));
-        if (user == null || user.getRole() != UserRole.ROLE_REVIEWER) {
+        Reviewer reviewerEntity = reviewerRepository.findById(id).orElse(null);
+        User user = null;
+        if (reviewerEntity != null && reviewerEntity.getUser() != null) {
+            user = reviewerEntity.getUser();
+        } else {
+            user = userRepository.findById(id).orElse(null);
+        }
+
+        if (user == null && reviewerEntity != null) {
+            user = userRepository.findByEmailIgnoreCase(reviewerEntity.getEmail()).orElse(null);
+        }
+
+        if (reviewerEntity == null && user != null) {
+            Optional<Reviewer> rOpt = reviewerRepository.findByUserId(user.getId());
+            if (rOpt.isEmpty()) {
+                rOpt = reviewerRepository.findByEmailIgnoreCase(user.getEmail());
+            }
+            reviewerEntity = rOpt.orElse(null);
+        }
+
+        if (user == null && reviewerEntity == null) {
             throw new ResourceNotFoundException("Reviewer not found with id: " + id);
         }
 
@@ -280,17 +311,33 @@ public class UserServiceImpl implements UserService {
         List<Manuscript> allManuscripts = manuscriptRepository.findAll();
         for (Manuscript m : allManuscripts) {
             boolean changed = false;
-            if (m.getAssignedReviewer() != null && m.getAssignedReviewer().getId().equals(user.getId())) {
-                m.setAssignedReviewer(null);
-                m.setAssignedReviewerName(null);
-                m.setAssignedReviewer1Ref(null);
-                changed = true;
+            if (user != null) {
+                if (m.getAssignedReviewer() != null && m.getAssignedReviewer().getId().equals(user.getId())) {
+                    m.setAssignedReviewer(null);
+                    m.setAssignedReviewerName(null);
+                    m.setAssignedReviewer1Ref(null);
+                    changed = true;
+                }
+                if (m.getAssignedReviewer2() != null && m.getAssignedReviewer2().getId().equals(user.getId())) {
+                    m.setAssignedReviewer2(null);
+                    m.setAssignedReviewer2Name(null);
+                    m.setAssignedReviewer2Ref(null);
+                    changed = true;
+                }
             }
-            if (m.getAssignedReviewer2() != null && m.getAssignedReviewer2().getId().equals(user.getId())) {
-                m.setAssignedReviewer2(null);
-                m.setAssignedReviewer2Name(null);
-                m.setAssignedReviewer2Ref(null);
-                changed = true;
+            if (reviewerEntity != null) {
+                if (m.getAssignedReviewer1Ref() != null && m.getAssignedReviewer1Ref().getId().equals(reviewerEntity.getId())) {
+                    m.setAssignedReviewer1Ref(null);
+                    m.setAssignedReviewer(null);
+                    m.setAssignedReviewerName(null);
+                    changed = true;
+                }
+                if (m.getAssignedReviewer2Ref() != null && m.getAssignedReviewer2Ref().getId().equals(reviewerEntity.getId())) {
+                    m.setAssignedReviewer2Ref(null);
+                    m.setAssignedReviewer2(null);
+                    m.setAssignedReviewer2Name(null);
+                    changed = true;
+                }
             }
             if (changed) {
                 manuscriptRepository.save(m);
@@ -298,17 +345,63 @@ public class UserServiceImpl implements UserService {
         }
 
         // 2. Remove review reports submitted by this reviewer
-        List<Review> reviews = reviewRepository.findByReviewerOrderBySubmittedAtDesc(user);
-        if (reviews != null && !reviews.isEmpty()) {
-            reviewRepository.deleteAll(reviews);
+        if (user != null) {
+            List<Review> reviews = reviewRepository.findByReviewerOrderBySubmittedAtDesc(user);
+            if (reviews != null && !reviews.isEmpty()) {
+                reviewRepository.deleteAll(reviews);
+            }
         }
 
-        // 3. Remove from reviewers table
-        reviewerRepository.findByUserId(user.getId()).ifPresent(reviewerRepository::delete);
-        reviewerRepository.findByEmailIgnoreCase(user.getEmail()).ifPresent(reviewerRepository::delete);
+        // 3. Clear review assignments (both as reviewer and as superseded reviewer)
+        if (user != null) {
+            List<ReviewAssignment> superseded = reviewAssignmentRepository.findBySupersededByReviewer(user);
+            if (superseded != null && !superseded.isEmpty()) {
+                for (ReviewAssignment sa : superseded) {
+                    sa.setSupersededByReviewer(null);
+                    reviewAssignmentRepository.save(sa);
+                }
+            }
 
-        // 4. Remove user record
-        userRepository.delete(user);
+            List<ReviewAssignment> assignments = reviewAssignmentRepository.findByReviewerOrderByAssignedDateDesc(user);
+            if (assignments != null && !assignments.isEmpty()) {
+                for (ReviewAssignment a : assignments) {
+                    if (a.getReports() != null && !a.getReports().isEmpty()) {
+                        reviewRepository.deleteAll(a.getReports());
+                    }
+                }
+                reviewAssignmentRepository.deleteAll(assignments);
+            }
+        }
+
+        // 4. Delete tokens associated with this user
+        if (user != null) {
+            try {
+                accountSetupTokenRepository.deleteByUser(user);
+            } catch (Exception ignored) {}
+            try {
+                passwordResetTokenRepository.deleteByUser(user);
+            } catch (Exception ignored) {}
+        }
+
+        // 5. Delete enterprise 3NF user_profile
+        if (user != null) {
+            userProfileRepository.findByUserId(user.getId()).ifPresent(userProfileRepository::delete);
+            userProfileRepository.findByUser(user).ifPresent(userProfileRepository::delete);
+        }
+
+        // 6. Remove from reviewers table
+        if (reviewerEntity != null) {
+            reviewerRepository.delete(reviewerEntity);
+        }
+        if (user != null) {
+            reviewerRepository.findByUserId(user.getId()).ifPresent(reviewerRepository::delete);
+            reviewerRepository.findByEmailIgnoreCase(user.getEmail()).ifPresent(reviewerRepository::delete);
+        }
+
+        // 7. Finally remove user record
+        if (user != null) {
+            userRepository.delete(user);
+        }
     }
 
     @Override

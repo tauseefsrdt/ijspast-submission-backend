@@ -152,7 +152,7 @@ public class ReviewServiceImpl implements ReviewService {
         Review review = existingReviewOpt.orElseGet(Review::new);
 
         if (review.getId() == null) {
-            review.setId("rev_rep_" + UUID.randomUUID().toString().replace("-", "").substring(0, 12));
+            review.setId("rev_rep_" + UUID.randomUUID().toString().replace("-", ""));
         }
         review.setManuscript(manuscript);
         review.setReviewer(reviewer);

@@ -47,6 +47,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
     public ResponseEntity<ApiResponse<Void>> handleDataIntegrityViolation(org.springframework.dao.DataIntegrityViolationException ex) {
+        log.error("DataIntegrityViolationException caught: ", ex);
         String msg = ex.getMessage() != null ? ex.getMessage().toLowerCase() : "";
         if (msg.contains("phone") || msg.contains("uk_users_phone") || msg.contains("uk_authors_phone")) {
             return ResponseEntity.status(HttpStatus.CONFLICT)
@@ -54,9 +55,18 @@ public class GlobalExceptionHandler {
         } else if (msg.contains("email") || msg.contains("idx_users_email") || msg.contains("idx_authors_email")) {
             return ResponseEntity.status(HttpStatus.CONFLICT)
                     .body(ApiResponse.error("A record with this email address already exists. Email addresses must be unique across all authors and editors."));
+        } else if (msg.contains("foreign key") || msg.contains("cannot delete") || msg.contains("referenced") || msg.contains("a foreign key constraint fails")) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(ApiResponse.error("Database constraint violation: Cannot delete or update record because it is referenced by other entities."));
+        } else if (msg.contains("manuscript_files") || msg.contains("primary key") || msg.contains("duplicate entry")) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(ApiResponse.error("Database constraint violation: A file with this ID already exists. Please try again."));
+        } else if (msg.contains("manuscript_revisions") || msg.contains("round_number")) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(ApiResponse.error("Database constraint violation: A revision with this round number already exists for this manuscript."));
         }
         return ResponseEntity.status(HttpStatus.CONFLICT)
-                .body(ApiResponse.error("Database constraint violation: A duplicate entry already exists in the system."));
+                .body(ApiResponse.error("Database constraint violation: The operation could not be completed due to database constraints."));
     }
 
     @ExceptionHandler(BadRequestException.class)
@@ -112,6 +122,6 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleGeneralException(Exception ex) {
         log.error("Unhandled internal server error: ", ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ApiResponse.error("An unexpected error occurred. Please contact the editorial office."));
+                .body(ApiResponse.error("An unexpected error occurred: " + (ex.getMessage() != null ? ex.getMessage() : "Internal server error.")));
     }
 }

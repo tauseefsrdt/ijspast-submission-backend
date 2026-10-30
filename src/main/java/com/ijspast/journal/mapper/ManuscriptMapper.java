@@ -265,6 +265,19 @@ public class ManuscriptMapper {
             }
         }
 
+        if (manuscript.getRevisions() != null && !manuscript.getRevisions().isEmpty()) {
+            List<ManuscriptRevisionDTO> revisionDTOs = manuscript.getRevisions().stream()
+                    .map(r -> new ManuscriptRevisionDTO(
+                            r.getId(),
+                            r.getRoundNumber(),
+                            toFileDTO(r.getRevisedFile()),
+                            r.getAuthorRebuttalResponse(),
+                            r.getSubmittedAt() != null ? r.getSubmittedAt().toString() : null
+                    ))
+                    .collect(Collectors.toList());
+            dto.setRevisions(revisionDTOs);
+        }
+
         // Calculate and set actual author revision count
         int revCount = 0;
         if (manuscript.getFiles() != null) {
