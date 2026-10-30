@@ -45,6 +45,20 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error(ex.getMessage()));
     }
 
+    @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
+    public ResponseEntity<ApiResponse<Void>> handleDataIntegrityViolation(org.springframework.dao.DataIntegrityViolationException ex) {
+        String msg = ex.getMessage() != null ? ex.getMessage().toLowerCase() : "";
+        if (msg.contains("phone") || msg.contains("uk_users_phone") || msg.contains("uk_authors_phone")) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(ApiResponse.error("A record with this phone number already exists. Phone numbers must be unique across all authors and editors."));
+        } else if (msg.contains("email") || msg.contains("idx_users_email") || msg.contains("idx_authors_email")) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(ApiResponse.error("A record with this email address already exists. Email addresses must be unique across all authors and editors."));
+        }
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ApiResponse.error("Database constraint violation: A duplicate entry already exists in the system."));
+    }
+
     @ExceptionHandler(BadRequestException.class)
     public ResponseEntity<ApiResponse<Void>> handleBadRequest(BadRequestException ex) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)

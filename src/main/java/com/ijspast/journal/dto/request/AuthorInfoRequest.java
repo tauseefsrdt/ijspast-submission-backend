@@ -23,16 +23,23 @@ public class AuthorInfoRequest {
     @NotBlank(message = "ORCID ID is required to submit a manuscript (e.g. 0000-0002-1825-0097)")
     private String orcid;
 
+    private String phone;
+
     public AuthorInfoRequest() {
     }
 
     public AuthorInfoRequest(String name, String email, String institution, String department, String cityCountry, String orcid) {
+        this(name, email, institution, department, cityCountry, orcid, null);
+    }
+
+    public AuthorInfoRequest(String name, String email, String institution, String department, String cityCountry, String orcid, String phone) {
         this.name = name;
-        this.email = email;
+        this.email = email != null ? email.trim() : null;
         this.institution = institution;
         this.department = department;
         this.cityCountry = cityCountry;
         this.orcid = orcid;
+        this.phone = phone != null ? phone.trim() : null;
     }
 
     public String getName() {
@@ -48,7 +55,7 @@ public class AuthorInfoRequest {
     }
 
     public void setEmail(String email) {
-        this.email = email;
+        this.email = email != null ? email.trim() : null;
     }
 
     public String getInstitution() {
@@ -81,5 +88,13 @@ public class AuthorInfoRequest {
 
     public void setOrcid(String orcid) {
         this.orcid = orcid;
+    }
+
+    public String getPhone() {
+        return phone;
+    }
+
+    public void setPhone(String phone) {
+        this.phone = phone != null ? phone.trim() : null;
     }
 }

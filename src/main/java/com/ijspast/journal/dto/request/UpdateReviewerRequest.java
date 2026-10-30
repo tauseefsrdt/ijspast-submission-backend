@@ -47,7 +47,7 @@ public class UpdateReviewerRequest {
     }
 
     public void setEmail(String email) {
-        this.email = email;
+        this.email = email != null ? email.trim() : null;
     }
 
     public String getPhone() {
@@ -55,7 +55,7 @@ public class UpdateReviewerRequest {
     }
 
     public void setPhone(String phone) {
-        this.phone = phone;
+        this.phone = phone != null ? phone.trim() : null;
     }
 
     public String getInstitution() {

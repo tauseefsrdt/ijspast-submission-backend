@@ -33,7 +33,7 @@ public class User {
     @Column
     private String domain;
 
-    @Column(length = 64)
+    @Column(length = 64, unique = true)
     private String phone;
 
     @Column(nullable = false)

@@ -5,6 +5,7 @@ public class UserResponseDTO {
     private String id;
     private String name;
     private String email;
+    private String phone;
     private String role; // "author", "editor", "reviewer"
     private String institution;
     private String department;
@@ -44,6 +45,14 @@ public class UserResponseDTO {
 
     public void setEmail(String email) {
         this.email = email;
+    }
+
+    public String getPhone() {
+        return phone;
+    }
+
+    public void setPhone(String phone) {
+        this.phone = phone;
     }
 
     public String getRole() {

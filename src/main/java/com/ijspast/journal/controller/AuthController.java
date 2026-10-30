@@ -14,9 +14,11 @@ import org.springframework.web.bind.annotation.*;
 public class AuthController {
 
     private final AuthService authService;
+    private final com.ijspast.journal.service.UserService userService;
 
-    public AuthController(AuthService authService) {
+    public AuthController(AuthService authService, com.ijspast.journal.service.UserService userService) {
         this.authService = authService;
+        this.userService = userService;
     }
 
     @PostMapping("/login")
@@ -69,5 +71,19 @@ public class AuthController {
     public ResponseEntity<ApiResponse<UserResponseDTO>> getCurrentUser() {
         UserResponseDTO user = authService.getCurrentUser();
         return ResponseEntity.ok(ApiResponse.success(user));
+    }
+
+    @PutMapping("/profile")
+    public ResponseEntity<ApiResponse<UserResponseDTO>> updateProfile(@Valid @RequestBody UpdateProfileRequest request) {
+        UserResponseDTO currentUser = authService.getCurrentUser();
+        UserResponseDTO updated = userService.updateProfile(currentUser.getId(), request);
+        return ResponseEntity.ok(ApiResponse.success("Profile updated successfully", updated));
+    }
+
+    @PostMapping("/register-author")
+    public ResponseEntity<ApiResponse<UserResponseDTO>> registerAuthor(@Valid @RequestBody AuthorRegistrationRequest request) {
+        UserResponseDTO registered = userService.registerAuthor(request);
+        return ResponseEntity.status(org.springframework.http.HttpStatus.CREATED)
+                .body(ApiResponse.success("Author account registered successfully", registered));
     }
 }

@@ -35,7 +35,7 @@ public class Author {
     @Column(nullable = false, length = 64)
     private String orcid;
 
-    @Column(length = 64)
+    @Column(length = 64, unique = true)
     private String phone;
 
     @OneToMany(mappedBy = "author", cascade = CascadeType.ALL, fetch = FetchType.LAZY)

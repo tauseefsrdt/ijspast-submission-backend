@@ -27,15 +27,18 @@ public class EditorController {
     private final UserService userService;
     private final ReviewService reviewService;
     private final EmailService emailService;
+    private final com.ijspast.journal.service.DataIntegrityAuditService dataIntegrityAuditService;
 
     public EditorController(ManuscriptService manuscriptService,
                             UserService userService,
                             ReviewService reviewService,
-                            EmailService emailService) {
+                            EmailService emailService,
+                            com.ijspast.journal.service.DataIntegrityAuditService dataIntegrityAuditService) {
         this.manuscriptService = manuscriptService;
         this.userService = userService;
         this.reviewService = reviewService;
         this.emailService = emailService;
+        this.dataIntegrityAuditService = dataIntegrityAuditService;
     }
 
     @GetMapping("/manuscripts")
@@ -214,5 +217,19 @@ public class EditorController {
     public ResponseEntity<ApiResponse<List<ReviewerTableDTO>>> getReviewersTable() {
         List<ReviewerTableDTO> list = manuscriptService.getReviewersTable();
         return ResponseEntity.ok(ApiResponse.success(list));
+    }
+
+    @PostMapping("/editors")
+    public ResponseEntity<ApiResponse<UserResponseDTO>> createEditor(
+            @Valid @RequestBody com.ijspast.journal.dto.request.CreateEditorRequest request) {
+        UserResponseDTO editor = userService.createEditor(request);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success("Editor account created successfully", editor));
+    }
+
+    @GetMapping("/audit-uniqueness")
+    public ResponseEntity<ApiResponse<com.ijspast.journal.service.DataIntegrityAuditService.AuditSummary>> auditUniqueness() {
+        com.ijspast.journal.service.DataIntegrityAuditService.AuditSummary report = dataIntegrityAuditService.auditAndSafelyResolveExistingRecords();
+        return ResponseEntity.ok(ApiResponse.success("Uniqueness audit completed successfully", report));
     }
 }

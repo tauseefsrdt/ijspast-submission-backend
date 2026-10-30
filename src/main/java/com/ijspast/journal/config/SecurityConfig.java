@@ -60,7 +60,8 @@ public class SecurityConfig {
                                 "/api/v1/auth/resend-otp",
                                 "/api/v1/auth/verify-otp",
                                 "/api/v1/auth/reset-password",
-                                "/api/v1/auth/activate-account"
+                                "/api/v1/auth/activate-account",
+                                "/api/v1/auth/register-author"
                         ).permitAll()
 
                         // Public Manuscript Submission & Archive

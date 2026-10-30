@@ -58,6 +58,7 @@ public class ManuscriptServiceImpl implements ManuscriptService {
     private final EmailService emailService;
     private final PasswordEncoder passwordEncoder;
     private final ManuscriptCommunicationRepository communicationRepository;
+    private final UserUniquenessValidationService userUniquenessValidationService;
 
     @Value("${app.editor.email:${EDITOR_EMAIL:}}")
     private String editorEmail;
@@ -79,7 +80,8 @@ public class ManuscriptServiceImpl implements ManuscriptService {
                                  FileStorageService fileStorageService,
                                  EmailService emailService,
                                  PasswordEncoder passwordEncoder,
-                                 ManuscriptCommunicationRepository communicationRepository) {
+                                 ManuscriptCommunicationRepository communicationRepository,
+                                 UserUniquenessValidationService userUniquenessValidationService) {
         this.manuscriptRepository = manuscriptRepository;
         this.userRepository = userRepository;
         this.authorRepository = authorRepository;
@@ -95,6 +97,7 @@ public class ManuscriptServiceImpl implements ManuscriptService {
         this.emailService = emailService;
         this.passwordEncoder = passwordEncoder;
         this.communicationRepository = communicationRepository;
+        this.userUniquenessValidationService = userUniquenessValidationService;
     }
 
     private String getAuthenticatedUserEmail() {
@@ -119,6 +122,11 @@ public class ManuscriptServiceImpl implements ManuscriptService {
     public SubmissionResponseDTO submitManuscript(ManuscriptSubmissionRequest request, MultipartFile multipartFile) {
         String email = request.getAuthor().getEmail().trim().toLowerCase();
         String authorName = request.getAuthor().getName().trim();
+        String rawPhone = request.getAuthor().getPhone();
+
+        // Enforce uniqueness validation for author email & phone across roles
+        userUniquenessValidationService.validateNewAuthor(email, rawPhone);
+        String normalizedPhone = userUniquenessValidationService.sanitizePhone(rawPhone);
 
         // 1. Check if author user already exists
         Optional<User> existingUserOpt = userRepository.findByEmailIgnoreCase(email);
@@ -136,6 +144,9 @@ public class ManuscriptServiceImpl implements ManuscriptService {
             if (request.getAuthor().getDepartment() != null && !request.getAuthor().getDepartment().isBlank()) {
                 authorUser.setDepartment(request.getAuthor().getDepartment().trim());
             }
+            if (normalizedPhone != null) {
+                authorUser.setPhone(normalizedPhone);
+            }
             userRepository.save(authorUser);
         } else {
             isNewUser = true;
@@ -150,6 +161,9 @@ public class ManuscriptServiceImpl implements ManuscriptService {
             );
             authorUser.setInstitution(request.getAuthor().getInstitution().trim());
             authorUser.setDepartment(request.getAuthor().getDepartment());
+            if (normalizedPhone != null) {
+                authorUser.setPhone(normalizedPhone);
+            }
             authorUser.setEnabled(true);
             authorUser.setAccountSetupCompleted(true);
             authorUser = userRepository.save(authorUser);
@@ -188,7 +202,8 @@ public class ManuscriptServiceImpl implements ManuscriptService {
                     request.getAuthor().getInstitution().trim(),
                     request.getAuthor().getDepartment(),
                     request.getAuthor().getCityCountry().trim(),
-                    request.getAuthor().getOrcid().trim());
+                    request.getAuthor().getOrcid().trim(),
+                    normalizedPhone);
             existing.setAuthor(authorEntity);
 
             // Handle file upload if a new/revised file is provided
@@ -283,7 +298,8 @@ public class ManuscriptServiceImpl implements ManuscriptService {
                 request.getAuthor().getInstitution().trim(),
                 request.getAuthor().getDepartment(),
                 request.getAuthor().getCityCountry().trim(),
-                request.getAuthor().getOrcid().trim());
+                request.getAuthor().getOrcid().trim(),
+                normalizedPhone);
         manuscript.setAuthor(authorEntity);
 
         // Sync normalized UserProfile
@@ -296,6 +312,9 @@ public class ManuscriptServiceImpl implements ManuscriptService {
         userProfile.setDepartment(request.getAuthor().getDepartment());
         userProfile.setCityCountry(request.getAuthor().getCityCountry().trim());
         userProfile.setOrcid(request.getAuthor().getOrcid().trim());
+        if (normalizedPhone != null) {
+            userProfile.setPhone(normalizedPhone);
+        }
         userProfileRepository.save(userProfile);
 
         manuscript.setStatus("Submitted");
@@ -1463,7 +1482,7 @@ public class ManuscriptServiceImpl implements ManuscriptService {
         return sb.toString();
     }
 
-    private Author getOrCreateAuthorEntity(User authorUser, String name, String email, String institution, String department, String cityCountry, String orcid) {
+    private Author getOrCreateAuthorEntity(User authorUser, String name, String email, String institution, String department, String cityCountry, String orcid, String normalizedPhone) {
         String cleanEmail = email.trim().toLowerCase();
         return authorRepository.findByEmailIgnoreCase(cleanEmail)
                 .or(() -> authorUser != null ? authorRepository.findByUserId(authorUser.getId()) : Optional.empty())
@@ -1474,6 +1493,7 @@ public class ManuscriptServiceImpl implements ManuscriptService {
                     if (department != null && !department.isBlank()) existing.setDepartment(department);
                     if (cityCountry != null && !cityCountry.isBlank()) existing.setCityCountry(cityCountry);
                     if (orcid != null && !orcid.isBlank()) existing.setOrcid(orcid);
+                    if (normalizedPhone != null && !normalizedPhone.isBlank()) existing.setPhone(normalizedPhone);
                     return authorRepository.save(existing);
                 })
                 .orElseGet(() -> {
@@ -1486,6 +1506,7 @@ public class ManuscriptServiceImpl implements ManuscriptService {
                     a.setDepartment(department);
                     a.setCityCountry(cityCountry != null ? cityCountry : "India");
                     a.setOrcid(orcid != null ? orcid : "0000-0000-0000-0000");
+                    if (normalizedPhone != null && !normalizedPhone.isBlank()) a.setPhone(normalizedPhone);
                     return authorRepository.save(a);
                 });
     }

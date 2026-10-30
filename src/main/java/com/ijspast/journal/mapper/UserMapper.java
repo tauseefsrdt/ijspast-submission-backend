@@ -16,6 +16,7 @@ public class UserMapper {
         dto.setId(user.getId());
         dto.setName(user.getName());
         dto.setEmail(user.getEmail());
+        dto.setPhone(user.getPhone());
         dto.setRole(user.getRole().getSimpleName());
         dto.setInstitution(user.getInstitution());
         dto.setDepartment(user.getDepartment());
@@ -34,6 +35,7 @@ public class UserMapper {
         dto.setId(user.getId());
         dto.setName(user.getName());
         dto.setEmail(user.getEmail());
+        dto.setPhone(user.getPhone());
         dto.setPhone(user.getPhone());
         dto.setInstitution(user.getInstitution());
         dto.setDomain(user.getDomain());

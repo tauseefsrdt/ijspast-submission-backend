@@ -17,6 +17,14 @@ public interface AuthorRepository extends JpaRepository<Author, String> {
 
     boolean existsByEmailIgnoreCase(String email);
 
+    Optional<Author> findByPhone(String phone);
+
+    boolean existsByPhone(String phone);
+
+    boolean existsByEmailIgnoreCaseAndIdNot(String email, String id);
+
+    boolean existsByPhoneAndIdNot(String phone, String id);
+
     @Query("SELECT DISTINCT a FROM Author a LEFT JOIN FETCH a.manuscripts ORDER BY a.name ASC")
     List<Author> findAllWithManuscripts();
 }

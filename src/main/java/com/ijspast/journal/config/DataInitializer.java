@@ -32,6 +32,7 @@ public class DataInitializer implements CommandLineRunner {
     private final PasswordResetTokenRepository passwordResetTokenRepository;
     private final AccountSetupTokenRepository accountSetupTokenRepository;
     private final PasswordEncoder passwordEncoder;
+    private final com.ijspast.journal.service.DataIntegrityAuditService dataIntegrityAuditService;
 
     @Value("${app.editor.email:${EDITOR_EMAIL:}}")
     private String editorEmail;
@@ -45,13 +46,17 @@ public class DataInitializer implements CommandLineRunner {
     @Value("${app.editor.institution:${EDITOR_INSTITUTION:Shri Ramswaroop Memorial University}}")
     private String editorInstitution;
 
+    @Value("${app.editor.phone:${EDITOR_PHONE:}}")
+    private String editorPhone;
+
     public DataInitializer(UserRepository userRepository,
                            UserProfileRepository userProfileRepository,
                            ManuscriptRepository manuscriptRepository,
                            ReviewRepository reviewRepository,
                            PasswordResetTokenRepository passwordResetTokenRepository,
                            AccountSetupTokenRepository accountSetupTokenRepository,
-                           PasswordEncoder passwordEncoder) {
+                           PasswordEncoder passwordEncoder,
+                           com.ijspast.journal.service.DataIntegrityAuditService dataIntegrityAuditService) {
         this.userRepository = userRepository;
         this.userProfileRepository = userProfileRepository;
         this.manuscriptRepository = manuscriptRepository;
@@ -59,6 +64,7 @@ public class DataInitializer implements CommandLineRunner {
         this.passwordResetTokenRepository = passwordResetTokenRepository;
         this.accountSetupTokenRepository = accountSetupTokenRepository;
         this.passwordEncoder = passwordEncoder;
+        this.dataIntegrityAuditService = dataIntegrityAuditService;
     }
 
     @Override
@@ -76,6 +82,9 @@ public class DataInitializer implements CommandLineRunner {
         } else {
             log.warn("Database initialization skipped: app.editor.email / EDITOR_EMAIL is not configured.");
         }
+
+        // Audit existing records for duplicate emails and phones across Authors and Editors
+        dataIntegrityAuditService.auditAndSafelyResolveExistingRecords();
     }
 
     private void cleanLegacyStaticData() {
@@ -106,22 +115,32 @@ public class DataInitializer implements CommandLineRunner {
                     );
                     user.setInstitution(editorInstitution);
                     user.setDepartment("Office of Editor-in-Chief");
+                    if (editorPhone != null && !editorPhone.isBlank()) {
+                        user.setPhone(com.ijspast.journal.util.PhoneNumberUtils.normalize(editorPhone));
+                    }
                     user.setEnabled(true);
                     user.setAccountSetupCompleted(true);
                     return userRepository.save(user);
                 });
 
-        userProfileRepository.findByUserId(editor.getId()).orElseGet(() -> {
+        User currentEditor = editor;
+        if (currentEditor.getPhone() == null && editorPhone != null && !editorPhone.isBlank()) {
+            currentEditor.setPhone(com.ijspast.journal.util.PhoneNumberUtils.normalize(editorPhone));
+            currentEditor = userRepository.save(currentEditor);
+        }
+        final User finalEditor = currentEditor;
+
+        userProfileRepository.findByUserId(finalEditor.getId()).orElseGet(() -> {
             UserProfile profile = new UserProfile();
-            profile.setId("profile_" + editor.getId());
-            profile.setUser(editor);
-            profile.setInstitution(editor.getInstitution() != null ? editor.getInstitution() : editorInstitution);
-            profile.setDepartment(editor.getDepartment() != null ? editor.getDepartment() : "Office of Editor-in-Chief");
+            profile.setId("profile_" + finalEditor.getId());
+            profile.setUser(finalEditor);
+            profile.setInstitution(finalEditor.getInstitution() != null ? finalEditor.getInstitution() : editorInstitution);
+            profile.setDepartment(finalEditor.getDepartment() != null ? finalEditor.getDepartment() : "Office of Editor-in-Chief");
             profile.setCityCountry("Lucknow, India");
             profile.setDomainExpertise("Applied Sciences & Journal Management");
             return userProfileRepository.save(profile);
         });
 
-        return editor;
+        return finalEditor;
     }
 }
